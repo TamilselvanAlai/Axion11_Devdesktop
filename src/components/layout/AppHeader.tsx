@@ -1,4 +1,5 @@
-import { Search, Bell, ChevronDown, Cloud, RefreshCw } from "lucide-react";
+import { Search, Bell, ChevronDown, RefreshCw, Settings, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,51 +10,68 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/hooks/useAuth";
+import { ROUTES } from "@/constants/routes";
 
 export function AppHeader() {
   const user = useUser();
   const { logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-4 border-b border-border bg-background px-4">
-      <div className="relative max-w-md flex-1">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          type="search"
-          placeholder="Search assets, batches, SKUs…"
-          className="h-9 w-full rounded-lg border border-input bg-transparent pl-8 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
-        />
+    <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+      <div className="flex min-w-0 flex-1 justify-center">
+        <div className="flex w-full max-w-100 items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1.5 transition-colors focus-within:border-white/20">
+          <Search className="size-3 shrink-0 text-muted-foreground" />
+          <input
+            type="search"
+            placeholder="Search assets, batches, SKUs…"
+            className="w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
+          />
+        </div>
       </div>
 
-      <div className="flex items-center gap-4 text-sm">
-        <span className="hidden items-center gap-1.5 text-emerald-500 sm:flex">
-          <Cloud className="size-4" /> Cloud Connected
-        </span>
-        <span className="hidden items-center gap-1.5 text-primary sm:flex">
-          <RefreshCw className="size-4" /> Syncing
-        </span>
-        <button
-          aria-label="Notifications"
-          className="relative flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Bell className="size-4" />
-          <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" />
+      <div className="flex shrink-0 items-center gap-0.5 text-xs">
+        <button className="flex items-center gap-1 rounded-md px-2 py-1 text-success transition-colors hover:bg-white/5">
+          <span className="size-1 rounded-full bg-success" /> Cloud Connected
+        </button>
+        <button className="flex items-center gap-1 rounded-md px-1.5 py-1 text-info transition-colors hover:bg-white/5">
+          <RefreshCw className="size-2.5 animate-spin animation-duration-[3s]" /> Syncing
         </button>
 
+        <div className="mx-0.5 h-3.5 w-px bg-border" />
+
+        <button
+          aria-label="Notifications"
+          className="relative flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+        >
+          <Bell className="size-3" />
+          <span className="absolute right-1.5 top-1.5 size-1 rounded-full bg-primary" />
+        </button>
+
+        <div className="mx-0.5 h-3.5 w-px bg-border" />
+
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-1.5 py-1 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50">
-            <Avatar className="size-7">
-              <AvatarFallback className="text-xs">{user?.initials ?? "?"}</AvatarFallback>
+          <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md px-1.5 py-1 outline-none transition-colors hover:bg-white/5 focus-visible:ring-3 focus-visible:ring-ring/50">
+            <Avatar className="size-5 border border-primary/40 bg-primary/20">
+              <AvatarFallback className="bg-transparent text-[9px] font-semibold text-primary">
+                {user?.initials ?? "?"}
+              </AvatarFallback>
             </Avatar>
-            <span className="hidden font-medium sm:inline">{user?.name ?? "Guest"}</span>
-            <ChevronDown className="size-3.5 text-muted-foreground" />
+            <span className="hidden text-xs font-medium sm:inline">{user?.name ?? "Guest"}</span>
+            <ChevronDown className="size-3 text-muted-foreground" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem disabled className="text-xs text-muted-foreground">
-              {user?.email}
-            </DropdownMenuItem>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-1.5 py-1.5">
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => logout()}>Log out</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => navigate(ROUTES.settings)}>
+              <Settings className="size-4" /> User Settings
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="destructive" onSelect={() => logout()}>
+              <LogOut className="size-4" /> Log Out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,51 +1,118 @@
-import { Home, FolderKanban, Clock, RefreshCw, Zap } from "lucide-react";
+import { useRef, useState } from "react";
+import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, Zap } from "lucide-react";
 import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
+import { ProjectTree } from "@/components/navigation/ProjectTree";
+import { useProjectTree } from "@/hooks/useProjectTree";
 import { ROUTES } from "@/constants/routes";
 
 export function AppSidebar() {
+  const projectTree = useProjectTree();
+  const [collapsed, setCollapsed] = useState(false);
+  const [flyoutOpen, setFlyoutOpen] = useState(false);
+  const [flyoutTop, setFlyoutTop] = useState(0);
+  const projectsRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+
+  function openFlyout() {
+    if (!collapsed) return;
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+    const rect = projectsRef.current?.getBoundingClientRect();
+    if (rect) setFlyoutTop(rect.top);
+    setFlyoutOpen(true);
+  }
+
+  function scheduleCloseFlyout() {
+    closeTimerRef.current = window.setTimeout(() => setFlyoutOpen(false), 200);
+  }
+
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <Zap className="size-4" />
+    <aside
+      className="relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 md:flex"
+      style={{ width: collapsed ? 60 : 256 }}
+    >
+      <button
+        type="button"
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        onClick={() => setCollapsed((c) => !c)}
+        className="absolute -right-2.5 top-3 z-10 flex size-5 items-center justify-center rounded-full border border-sidebar-border bg-popover text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+      >
+        {collapsed ? <ChevronRight className="size-2.5" /> : <ChevronLeft className="size-2.5" />}
+      </button>
+
+      <div className={`flex h-11 shrink-0 items-center gap-2 border-b border-sidebar-border px-4 ${collapsed ? "justify-center px-0" : ""}`}>
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/30">
+          <Zap className="size-3.5" fill="currentColor" />
         </span>
-        <span className="text-sm font-semibold text-sidebar-foreground">Axion</span>
-        <span className="rounded-md bg-sidebar-accent px-1.5 py-0.5 text-[11px] font-medium text-sidebar-foreground/70">
-          VisualOps
-        </span>
+        {!collapsed && (
+          <>
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">Axion</span>
+            <span className="rounded-md border border-sidebar-border bg-white/5 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+              VisualOps
+            </span>
+          </>
+        )}
       </div>
 
-      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-2">
+      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-3">
         <div className="flex flex-col gap-1">
-          <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40">
-            Workspace
-          </p>
-          <SidebarNavItem to={ROUTES.dashboard} icon={Home} label="Dashboard" />
-          <SidebarNavItem to={ROUTES.assets} icon={FolderKanban} label="Projects" />
+          <SidebarNavItem to={ROUTES.dashboard} icon={Home} label="Dashboard" collapsed={collapsed} />
+          <div ref={projectsRef} onMouseEnter={openFlyout} onMouseLeave={scheduleCloseFlyout}>
+            <SidebarNavItem to={ROUTES.projects} icon={FolderKanban} label="Projects" collapsed={collapsed} />
+            {!collapsed && (
+              <div className="mt-0.5">
+                <ProjectTree nodes={projectTree} />
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
-          <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40">
-            My Work
-          </p>
-          <SidebarNavItem to={ROUTES.settings} icon={Clock} label="Recent" />
+          {!collapsed && (
+            <p className="px-2.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/40">
+              My Work
+            </p>
+          )}
+          <SidebarNavItem to={ROUTES.recent} icon={Clock} label="Recent" collapsed={collapsed} />
         </div>
 
         <div className="flex flex-col gap-1">
-          <p className="px-2.5 text-[11px] font-semibold uppercase tracking-wide text-sidebar-foreground/40">
-            Operations
-          </p>
-          <SidebarNavItem to={ROUTES.settings} icon={RefreshCw} label="Transfers" />
+          {!collapsed && (
+            <p className="px-2.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/40">
+              Operations
+            </p>
+          )}
+          <SidebarNavItem to={ROUTES.transfers} icon={RefreshCw} label="Transfers" collapsed={collapsed} />
         </div>
       </nav>
 
-      <div className="border-t border-sidebar-border px-4 py-3 text-xs text-sidebar-foreground/60">
-        <div className="flex items-center justify-between">
-          <span>Cloud Sync</span>
-          <span className="flex items-center gap-1 text-emerald-500">
-            <span className="size-1.5 rounded-full bg-emerald-500" /> Running
-          </span>
+      {collapsed && flyoutOpen && (
+        <div
+          onMouseEnter={openFlyout}
+          onMouseLeave={scheduleCloseFlyout}
+          style={{ top: flyoutTop, left: 60 }}
+          className="fixed z-30 w-56 rounded-lg border border-sidebar-border bg-popover p-2 shadow-xl"
+        >
+          <p className="px-2 pb-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/40">Projects</p>
+          <ProjectTree nodes={projectTree} />
         </div>
+      )}
+
+      <div className="border-t border-sidebar-border px-4 py-3 text-xs text-sidebar-foreground/60">
+        {collapsed ? (
+          <div className="flex flex-col items-center gap-2">
+            <span className="size-1.5 rounded-full bg-success" />
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <span>Cloud Sync</span>
+            <span className="flex items-center gap-1 text-success">
+              <span className="size-1.5 rounded-full bg-success" /> Running
+            </span>
+          </div>
+        )}
       </div>
     </aside>
   );

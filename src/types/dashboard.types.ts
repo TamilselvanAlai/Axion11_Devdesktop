@@ -19,14 +19,15 @@ export interface WorkItem {
   status: WorkItemStatus;
   progress: { done: number; total: number };
   dueDate: string;
-  accentColor: string;
 }
+
+export type StorageColor = "primary" | "info" | "warning" | "neutral";
 
 export interface StorageBreakdownItem {
   id: string;
   label: string;
   valueGb: number;
-  color: string;
+  color: StorageColor;
 }
 
 export interface StorageSummary {
@@ -50,9 +51,41 @@ export interface ActivityItem {
   timestamp: string;
 }
 
+export type ServiceHealthColor = "success" | "info" | "warning" | "danger" | "neutral";
+
+export interface ServiceMetric {
+  label: string;
+  value: string;
+  color?: ServiceHealthColor;
+  pulse?: boolean;
+}
+
+export interface MountDriveOption {
+  id: string;
+  label: string;
+  capacityGb: number;
+}
+
+export interface BackgroundService {
+  id: string;
+  name: string;
+  statusColor: ServiceHealthColor;
+  badgeCount?: number;
+  metrics: ServiceMetric[];
+  uptime: string;
+  configurable?: boolean;
+}
+
+export interface BackgroundServicesSummary {
+  allHealthy: boolean;
+  services: BackgroundService[];
+  mountDriveOptions: MountDriveOption[];
+}
+
 export interface DashboardSnapshot {
   stats: DashboardStat[];
   workItems: WorkItem[];
   storage: StorageSummary;
   activity: ActivityItem[];
+  backgroundServices: BackgroundServicesSummary;
 }

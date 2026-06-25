@@ -1,9 +1,10 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { RightPanel } from "@/components/shared/RightPanel";
 import { WelcomeHeader } from "@/components/dashboard/WelcomeHeader";
 import { StatisticsSection } from "@/components/dashboard/StatisticsSection";
 import { WorkListSection } from "@/components/dashboard/WorkListSection";
 import { CloudStorageSection } from "@/components/dashboard/CloudStorageSection";
-import { ActivitySection } from "@/components/dashboard/ActivitySection";
+import { BackgroundServicesSection } from "@/components/dashboard/BackgroundServicesSection";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useDashboard } from "@/hooks/useDashboard";
 
@@ -19,7 +20,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout rightPanel={<RightPanel />}>
       <div className="flex flex-col gap-6">
         <WelcomeHeader />
 
@@ -32,7 +33,7 @@ export default function DashboardPage() {
           <CloudStorageSection storage={snapshot?.storage ?? null} />
         </div>
 
-        <ActivitySection items={snapshot?.activity ?? null} />
+        <BackgroundServicesSection summary={snapshot?.backgroundServices ?? null} />
       </div>
     </DashboardLayout>
   );

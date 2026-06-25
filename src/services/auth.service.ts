@@ -10,7 +10,7 @@ import { getInitials } from "@/utils/formatters";
  */
 export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthSession> {
-    await delay(700);
+    await delay(200);
 
     if (credentials.password === "wrong") {
       throw new Error("Incorrect email or password. Please try again.");
@@ -33,11 +33,11 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
-    await delay(150);
+    await delay(40);
   },
 
   async refreshSession(session: AuthSession): Promise<AuthSession> {
-    await delay(150);
+    await delay(40);
     return { ...session, expiresAt: Date.now() + env.sessionTtlMs };
   },
 };

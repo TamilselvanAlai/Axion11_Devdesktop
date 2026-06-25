@@ -15,7 +15,7 @@ export function StatCard({ stat }: { stat: DashboardStat }) {
     <Card className="flex flex-col gap-4 p-5">
       <div className="flex items-center justify-between">
         <Icon className="size-4 text-muted-foreground" />
-        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-500">
+        <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
           {stat.delta}
         </span>
       </div>

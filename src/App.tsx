@@ -4,7 +4,10 @@ import { RequireAuth } from "@/middleware/requireAuth";
 import { ROUTES } from "@/constants/routes";
 import LoginPage from "@/app/login/LoginPage";
 import DashboardPage from "@/app/dashboard/DashboardPage";
-import AssetsPage from "@/app/assets/AssetsPage";
+import ProjectsPage from "@/app/projects/ProjectsPage";
+import ProjectDetailPage from "@/app/projects/ProjectDetailPage";
+import RecentPage from "@/app/recent/RecentPage";
+import TransfersPage from "@/app/transfers/TransfersPage";
 import SettingsPage from "@/app/settings/SettingsPage";
 
 export default function App() {
@@ -16,7 +19,10 @@ export default function App() {
 
           <Route element={<RequireAuth />}>
             <Route path={ROUTES.dashboard} element={<DashboardPage />} />
-            <Route path={ROUTES.assets} element={<AssetsPage />} />
+            <Route path={ROUTES.projects} element={<ProjectsPage />} />
+            <Route path={`${ROUTES.projects}/:projectId`} element={<ProjectDetailPage />} />
+            <Route path={ROUTES.recent} element={<RecentPage />} />
+            <Route path={ROUTES.transfers} element={<TransfersPage />} />
             <Route path={ROUTES.settings} element={<SettingsPage />} />
           </Route>
 
