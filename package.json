@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "server:install": "npm install --prefix server",
+    "server:seed": "npm run seed --prefix server",
+    "server:dev": "npm run dev --prefix server",
+    "dev:all": "concurrently -n server,web -c blue,green \"npm run server:dev\" \"npm run dev\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -55,6 +59,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "concurrently": "^9.2.3",
     "typescript": "~5.8.3",
     "vite": "^7.0.4"
   }

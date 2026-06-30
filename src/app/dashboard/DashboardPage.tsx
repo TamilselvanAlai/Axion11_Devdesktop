@@ -1,5 +1,4 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { RightPanel } from "@/components/shared/RightPanel";
 import { WelcomeHeader } from "@/components/dashboard/WelcomeHeader";
 import { StatisticsSection } from "@/components/dashboard/StatisticsSection";
 import { WorkListSection } from "@/components/dashboard/WorkListSection";
@@ -20,7 +19,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <DashboardLayout rightPanel={<RightPanel />}>
+    <DashboardLayout>
       <div className="flex flex-col gap-6">
         <WelcomeHeader />
 

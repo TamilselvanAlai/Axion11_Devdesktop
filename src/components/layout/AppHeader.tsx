@@ -1,4 +1,4 @@
-import { Search, Bell, ChevronDown, RefreshCw, Settings, LogOut } from "lucide-react";
+import { Search, Bell, ChevronDown, Settings, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { CloudSyncMenu } from "@/components/shared/CloudSyncMenu";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/hooks/useAuth";
 import { ROUTES } from "@/constants/routes";
@@ -31,12 +32,7 @@ export function AppHeader() {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 text-xs">
-        <button className="flex items-center gap-1 rounded-md px-2 py-1 text-success transition-colors hover:bg-white/5">
-          <span className="size-1 rounded-full bg-success" /> Cloud Connected
-        </button>
-        <button className="flex items-center gap-1 rounded-md px-1.5 py-1 text-info transition-colors hover:bg-white/5">
-          <RefreshCw className="size-2.5 animate-spin animation-duration-[3s]" /> Syncing
-        </button>
+        <CloudSyncMenu />
 
         <div className="mx-0.5 h-3.5 w-px bg-border" />
 

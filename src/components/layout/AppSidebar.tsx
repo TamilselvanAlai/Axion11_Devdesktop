@@ -3,10 +3,39 @@ import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, Zap } 
 import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
 import { ProjectTree } from "@/components/navigation/ProjectTree";
 import { useProjectTree } from "@/hooks/useProjectTree";
+import { useCloudSync } from "@/hooks/useCloudSync";
 import { ROUTES } from "@/constants/routes";
+
+const SYNC_LABEL: Record<string, string> = {
+  disconnected: "Not Connected",
+  connecting: "Connecting…",
+  connected: "Connected",
+  syncing: "Syncing…",
+  synced: "Synced",
+  error: "Sync Failed",
+};
+
+const SYNC_DOT_CLASS: Record<string, string> = {
+  disconnected: "bg-muted-foreground",
+  connecting: "bg-info animate-pulse",
+  connected: "bg-success",
+  syncing: "bg-info animate-pulse",
+  synced: "bg-success",
+  error: "bg-danger",
+};
+
+const SYNC_TEXT_CLASS: Record<string, string> = {
+  disconnected: "text-muted-foreground",
+  connecting: "text-info",
+  connected: "text-success",
+  syncing: "text-info",
+  synced: "text-success",
+  error: "text-danger",
+};
 
 export function AppSidebar() {
   const projectTree = useProjectTree();
+  const { status: syncStatus } = useCloudSync();
   const [collapsed, setCollapsed] = useState(false);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [flyoutTop, setFlyoutTop] = useState(0);
@@ -103,13 +132,13 @@ export function AppSidebar() {
       <div className="border-t border-sidebar-border px-4 py-3 text-xs text-sidebar-foreground/60">
         {collapsed ? (
           <div className="flex flex-col items-center gap-2">
-            <span className="size-1.5 rounded-full bg-success" />
+            <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} />
           </div>
         ) : (
           <div className="flex items-center justify-between">
             <span>Cloud Sync</span>
-            <span className="flex items-center gap-1 text-success">
-              <span className="size-1.5 rounded-full bg-success" /> Running
+            <span className={`flex items-center gap-1 ${SYNC_TEXT_CLASS[syncStatus]}`}>
+              <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} /> {SYNC_LABEL[syncStatus]}
             </span>
           </div>
         )}
