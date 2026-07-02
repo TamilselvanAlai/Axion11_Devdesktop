@@ -9,6 +9,7 @@ interface AuthStoreState {
   expiresAt: number | null;
   isAuthenticated: boolean;
   setSession: (session: AuthSession) => void;
+  updateUser: (patch: Partial<User>) => void;
   clearSession: () => void;
 }
 
@@ -26,6 +27,7 @@ export const useAuthStore = create<AuthStoreState>()(
           expiresAt: session.expiresAt,
           isAuthenticated: true,
         }),
+      updateUser: (patch) => set((state) => (state.user ? { user: { ...state.user, ...patch } } : state)),
       clearSession: () =>
         set({ user: null, token: null, expiresAt: null, isAuthenticated: false }),
     }),

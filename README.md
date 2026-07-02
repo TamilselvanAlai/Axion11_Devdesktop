@@ -13,6 +13,6 @@ bcrypt check against the seeded user. Demo credentials: jordan.k@axion.io / axio
 Running it:
 
 
-npm run dev:all        # starts server (:4000) + Vite (:1420) together
+npm run dev:all        # starts server (:4000) + Vite (:3000) together
 # or separately: npm run server:dev   /   npm run dev
 npm run server:seed    # re-seed if you ever wipe the DB

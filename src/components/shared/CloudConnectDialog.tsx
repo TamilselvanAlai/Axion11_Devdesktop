@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Cloud, Box, HardDrive, Database, Loader2 } from "lucide-react";
+import { Cloud, Box, HardDrive, Database, Loader2, Info } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PROVIDER_LABEL } from "@/services/cloudSync.service";
+import { OAUTH_BACKED_PROVIDERS } from "@/services/cloudConnection.service";
 import type { CloudProvider, CloudSyncStatus } from "@/types";
 
 const PROVIDER_ICON: Record<CloudProvider, typeof Cloud> = {
@@ -42,8 +43,8 @@ export function CloudConnectDialog({ open, onOpenChange, status, onConnect }: Cl
   }
 
   const connectingCopy =
-    pendingProvider === "google-drive" && status === "connecting"
-      ? "Continue in your browser — choose your Google account and approve access."
+    pendingProvider && OAUTH_BACKED_PROVIDERS.includes(pendingProvider) && status === "connecting"
+      ? "Redirecting to sign in…"
       : status === "connecting"
         ? `Connecting to ${pendingProvider ? PROVIDER_LABEL[pendingProvider] : "your drive"}…`
         : "Syncing files into Cloud Drive…";
@@ -63,13 +64,20 @@ export function CloudConnectDialog({ open, onOpenChange, status, onConnect }: Cl
             <Loader2 className="size-6 animate-spin text-primary" />
             <p className="text-sm font-medium">{connectingCopy}</p>
             <p className="text-xs text-muted-foreground">
-              {pendingProvider === "google-drive" && status === "connecting"
-                ? "A browser window has opened — this dialog will continue automatically."
+              {pendingProvider && OAUTH_BACKED_PROVIDERS.includes(pendingProvider) && status === "connecting"
+                ? "You'll be brought back here after approving access."
                 : "This usually takes a few seconds."}
             </p>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
+            <div className="mb-1 flex items-start gap-2 rounded-lg border border-border bg-muted px-3 py-2.5">
+              <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">
+                Google Drive and OneDrive redirect you to sign in and bring you back here. Dropbox and Box use mock
+                data for now.
+              </p>
+            </div>
             {PROVIDERS.map((provider) => {
               const Icon = PROVIDER_ICON[provider];
               return (
@@ -82,7 +90,7 @@ export function CloudConnectDialog({ open, onOpenChange, status, onConnect }: Cl
                   <span className={`flex size-8 items-center justify-center rounded-lg ${PROVIDER_ACCENT[provider]}`}>
                     <Icon className="size-4" />
                   </span>
-                  {PROVIDER_LABEL[provider]}
+                  <span className="flex-1">{PROVIDER_LABEL[provider]}</span>
                 </button>
               );
             })}

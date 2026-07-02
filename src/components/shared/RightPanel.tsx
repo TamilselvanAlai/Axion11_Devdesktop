@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FileText, MessageSquare, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { ActivityList } from "@/components/dashboard/ActivityList";
 import { AssetInfoPanel } from "@/components/assets/AssetInfoPanel";
@@ -16,10 +16,16 @@ const TABS = [
 
 export function RightPanel() {
   const [collapsed, setCollapsed] = useState(false);
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("history");
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("info");
   const { snapshot } = useDashboard();
   const selectedAssetId = useAssetStore((state) => state.selectedAssetId);
   const { detail, status } = useAssetDetail(selectedAssetId);
+
+  // Selecting a new asset should surface its own details, not whatever tab was
+  // left open (e.g. History/Comments) from a previously selected asset.
+  useEffect(() => {
+    if (selectedAssetId) setTab("info");
+  }, [selectedAssetId]);
 
   return (
     <aside

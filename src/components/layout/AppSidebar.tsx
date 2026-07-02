@@ -4,7 +4,13 @@ import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
 import { ProjectTree } from "@/components/navigation/ProjectTree";
 import { useProjectTree } from "@/hooks/useProjectTree";
 import { useCloudSync } from "@/hooks/useCloudSync";
+import { useLocalDrives } from "@/hooks/useLocalDrives";
 import { ROUTES } from "@/constants/routes";
+
+function formatGb(bytes: number) {
+  const gb = bytes / (1024 * 1024 * 1024);
+  return gb >= 100 ? `${Math.round(gb)} GB` : `${gb.toFixed(1)} GB`;
+}
 
 const SYNC_LABEL: Record<string, string> = {
   disconnected: "Not Connected",
@@ -36,6 +42,10 @@ const SYNC_TEXT_CLASS: Record<string, string> = {
 export function AppSidebar() {
   const projectTree = useProjectTree();
   const { status: syncStatus } = useCloudSync();
+  const { drives: localDrives, isTauri } = useLocalDrives();
+  const primaryDrive = localDrives
+    ? [...localDrives].sort((a, b) => b.totalBytes - a.totalBytes)[0]
+    : null;
   const [collapsed, setCollapsed] = useState(false);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [flyoutTop, setFlyoutTop] = useState(0);
@@ -135,11 +145,28 @@ export function AppSidebar() {
             <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} />
           </div>
         ) : (
-          <div className="flex items-center justify-between">
-            <span>Cloud Sync</span>
-            <span className={`flex items-center gap-1 ${SYNC_TEXT_CLASS[syncStatus]}`}>
-              <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} /> {SYNC_LABEL[syncStatus]}
-            </span>
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span>Cloud Sync</span>
+              <span className={`flex items-center gap-1 ${SYNC_TEXT_CLASS[syncStatus]}`}>
+                <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} /> {SYNC_LABEL[syncStatus]}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span>Cache Usage</span>
+                <span className="font-mono">18.4 GB</span>
+              </div>
+              <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
+                <div className="h-full w-[34%] rounded-full bg-primary" />
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Free Storage</span>
+              <span className="font-mono">
+                {primaryDrive ? formatGb(primaryDrive.availableBytes) : isTauri ? "—" : "35.6 GB"}
+              </span>
+            </div>
           </div>
         )}
       </div>

@@ -29,4 +29,5 @@ sha2 = "0.10"
 base64 = "0.22"
 dotenvy = "0.15"
 urlencoding = "2"
+sysinfo = "0.32"
 

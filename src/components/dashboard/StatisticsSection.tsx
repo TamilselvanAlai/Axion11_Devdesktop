@@ -1,8 +1,15 @@
-import { StatCard } from "@/components/cards/StatCard";
+import { FileText, Clock, CheckCircle2 } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { DashboardStat } from "@/types";
+import type { DashboardStatCards } from "@/types";
 
-export function StatisticsSection({ stats }: { stats: DashboardStat[] | null }) {
+function DeltaBadge({ delta }: { delta: string }) {
+  return (
+    <span className="rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">{delta}</span>
+  );
+}
+
+export function StatisticsSection({ stats }: { stats: DashboardStatCards | null }) {
   if (!stats) {
     return (
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -15,9 +22,47 @@ export function StatisticsSection({ stats }: { stats: DashboardStat[] | null }) 
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      {stats.map((stat) => (
-        <StatCard key={stat.id} stat={stat} />
-      ))}
+      <Card className="flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <FileText className="size-4 text-muted-foreground" />
+          <DeltaBadge delta={stats.assetsEdited.delta} />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Assets Edited</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight">{stats.assetsEdited.value}</p>
+          <p className="text-sm text-muted-foreground">{stats.assetsEdited.description}</p>
+        </div>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <Clock className="size-4 text-muted-foreground" />
+          <DeltaBadge delta={stats.timeManagement.delta} />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Time Management</p>
+          <p className="mt-1 text-2xl font-semibold tracking-tight">{stats.timeManagement.value}</p>
+          <p className="text-sm text-muted-foreground">{stats.timeManagement.description}</p>
+        </div>
+      </Card>
+
+      <Card className="flex flex-col gap-4 p-5">
+        <div className="flex items-center justify-between">
+          <CheckCircle2 className="size-4 text-muted-foreground" />
+          <DeltaBadge delta={stats.tasks.delta} />
+        </div>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Tasks</p>
+          <div className="mt-1 flex items-baseline gap-3">
+            <span className="text-2xl font-semibold tracking-tight">{stats.tasks.completed}</span>
+            <span className="text-2xl font-semibold tracking-tight text-warning">{stats.tasks.pending}</span>
+          </div>
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <span>Completed</span>
+            <span>Pending</span>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

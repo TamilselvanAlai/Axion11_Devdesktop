@@ -1,4 +1,5 @@
 mod google_oauth;
+mod system_info;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -15,6 +16,7 @@ pub fn run() {
             google_oauth::google_oauth_login,
             google_oauth::google_drive_list_files,
             google_oauth::google_oauth_logout,
+            system_info::list_local_drives,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

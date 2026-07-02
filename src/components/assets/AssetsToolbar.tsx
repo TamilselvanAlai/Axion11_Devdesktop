@@ -1,15 +1,17 @@
 import { useRef, useState, Fragment } from "react";
 import { toast } from "sonner";
-import { Filter, SortAsc, LayoutGrid, List, Upload, ChevronRight, ChevronDown, File, FolderUp } from "lucide-react";
+import { Filter, SortAsc, LayoutGrid, List, Upload, ChevronRight, ChevronDown, File, FolderUp, Cloud } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CloudFileBrowserDialog } from "@/components/assets/CloudFileBrowserDialog";
 import { useAssetStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import { createAssetsFromFiles } from "@/utils/uploads";
+import { assetService } from "@/services/asset.service";
 import { WORKSPACE_NAME } from "@/constants/workspace";
 
 interface AssetsToolbarProps {
@@ -20,8 +22,9 @@ interface AssetsToolbarProps {
 }
 
 export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: AssetsToolbarProps) {
-  const { viewMode, setViewMode, addAssets } = useAssetStore();
+  const { viewMode, setViewMode, addAssets, setAssets } = useAssetStore();
   const [filterOpen, setFilterOpen] = useState(false);
+  const [cloudBrowserOpen, setCloudBrowserOpen] = useState(false);
   const user = useUser();
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -137,8 +140,24 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: Ass
           <DropdownMenuItem onSelect={() => folderInputRef.current?.click()}>
             <FolderUp className="size-4" /> Upload Folder
           </DropdownMenuItem>
+          {projectId && (
+            <DropdownMenuItem onSelect={() => setCloudBrowserOpen(true)}>
+              <Cloud className="size-4" /> Import from Cloud Drive
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {projectId && (
+        <CloudFileBrowserDialog
+          open={cloudBrowserOpen}
+          onOpenChange={setCloudBrowserOpen}
+          batchId={projectId}
+          onImported={() => {
+            assetService.listAssets({ projectId }).then(setAssets);
+          }}
+        />
+      )}
     </div>
   );
 }

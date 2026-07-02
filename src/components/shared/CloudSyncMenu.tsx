@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CloudConnectDialog } from "@/components/shared/CloudConnectDialog";
+import { CloudFileBrowserDialog } from "@/components/assets/CloudFileBrowserDialog";
 import { useCloudSync } from "@/hooks/useCloudSync";
 import { PROVIDER_LABEL } from "@/services/cloudSync.service";
 import { formatRelativeTime } from "@/utils/formatters";
@@ -15,6 +16,7 @@ import { formatRelativeTime } from "@/utils/formatters";
 export function CloudSyncMenu() {
   const { status, account, lastSyncedAt, fileCount, connect, sync, disconnect } = useCloudSync();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [browserOpen, setBrowserOpen] = useState(false);
 
   if (status === "disconnected") {
     return (
@@ -78,11 +80,13 @@ export function CloudSyncMenu() {
           )}
         </div>
         <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setBrowserOpen(true)}>View files</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => sync()}>Sync now</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onSelect={disconnect}>
           Disconnect
         </DropdownMenuItem>
       </DropdownMenuContent>
+      <CloudFileBrowserDialog open={browserOpen} onOpenChange={setBrowserOpen} />
     </DropdownMenu>
   );
 }

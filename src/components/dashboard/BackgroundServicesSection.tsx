@@ -1,8 +1,20 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Cpu, Settings, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocalDrives } from "@/hooks/useLocalDrives";
 import type { BackgroundServicesSummary, BackgroundService, MountDriveOption, ServiceHealthColor } from "@/types";
+
+interface DriveOption {
+  id: string;
+  label: string;
+  totalGb: number;
+  availableGb: number;
+}
+
+function bytesToGb(bytes: number) {
+  return Math.round(bytes / (1024 * 1024 * 1024));
+}
 
 const DOT_CLASS: Record<ServiceHealthColor, string> = {
   success: "bg-success",
@@ -41,10 +53,36 @@ function ServiceMetrics({ service }: { service: BackgroundService }) {
 }
 
 function MountServiceCard({ service, driveOptions }: { service: BackgroundService; driveOptions: MountDriveOption[] }) {
+  const { drives: localDrives, isTauri } = useLocalDrives();
+
+  const options: DriveOption[] = isTauri && localDrives
+    ? localDrives.map((d) => ({
+        id: d.id,
+        label: d.name === d.mountPoint ? d.name : `${d.name} (${d.mountPoint})`,
+        totalGb: bytesToGb(d.totalBytes),
+        availableGb: bytesToGb(d.availableBytes),
+      }))
+    : driveOptions.map((d) => ({ id: d.id, label: d.label, totalGb: d.capacityGb, availableGb: d.capacityGb }));
+
   const [flipped, setFlipped] = useState(false);
-  const [driveId, setDriveId] = useState(driveOptions[0]?.id ?? "");
-  const drive = driveOptions.find((d) => d.id === driveId) ?? driveOptions[0];
+  const [driveId, setDriveId] = useState(options[0]?.id ?? "");
+  const drive = options.find((d) => d.id === driveId) ?? options[0];
   const [cacheLimitGb, setCacheLimitGb] = useState(50);
+
+  useEffect(() => {
+    if (options.length > 0 && !options.some((d) => d.id === driveId)) {
+      setDriveId(options[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [options.map((d) => d.id).join(",")]);
+
+  const displayedService: BackgroundService =
+    isTauri && drive
+      ? {
+          ...service,
+          metrics: service.metrics.map((m) => (m.label === "Drive" ? { ...m, value: drive.label } : m)),
+        }
+      : service;
 
   return (
     <div className="rounded-xl" style={{ minHeight: 172, perspective: "1000px" }}>
@@ -70,7 +108,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
               <Settings className="size-3" />
             </button>
           </div>
-          <ServiceMetrics service={service} />
+          <ServiceMetrics service={displayedService} />
         </Card>
 
         <Card
@@ -97,13 +135,13 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
               <select
                 value={driveId}
                 onChange={(e) => {
-                  const next = driveOptions.find((d) => d.id === e.target.value);
+                  const next = options.find((d) => d.id === e.target.value);
                   setDriveId(e.target.value);
-                  if (next) setCacheLimitGb((prev) => Math.min(prev, next.capacityGb));
+                  if (next) setCacheLimitGb((prev) => Math.min(prev, next.availableGb));
                 }}
                 className="w-full cursor-pointer appearance-none rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground outline-none transition-colors focus:border-primary/50"
               >
-                {driveOptions.map((option) => (
+                {options.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.label}
                   </option>
@@ -119,7 +157,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
               <input
                 type="range"
                 min={10}
-                max={drive?.capacityGb ?? 256}
+                max={drive?.availableGb ?? 256}
                 step={10}
                 value={cacheLimitGb}
                 onChange={(e) => setCacheLimitGb(Number(e.target.value))}
@@ -127,7 +165,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
               />
               <div className="mt-1 flex justify-between text-[9px] text-muted-foreground">
                 <span>10 GB</span>
-                <span className="text-success">{drive?.capacityGb ?? 0} GB available</span>
+                <span className="text-success">{drive?.availableGb ?? 0} GB available</span>
               </div>
             </div>
           </div>

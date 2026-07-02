@@ -21,7 +21,7 @@ export default function DashboardPage() {
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
-        <WelcomeHeader />
+        <WelcomeHeader pendingReviewCount={snapshot?.pendingReviewCount} />
 
         <StatisticsSection stats={snapshot?.stats ?? null} />
 

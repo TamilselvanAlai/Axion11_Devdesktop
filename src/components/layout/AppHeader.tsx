@@ -1,5 +1,5 @@
-import { Search, Bell, ChevronDown, Settings, LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Search, ChevronDown, Settings, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,14 +9,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CloudSyncMenu } from "@/components/shared/CloudSyncMenu";
+import { NotificationsMenu } from "@/components/shared/NotificationsMenu";
+import { UserSettingsDialog } from "@/components/shared/UserSettingsDialog";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/hooks/useAuth";
-import { ROUTES } from "@/constants/routes";
 
 export function AppHeader() {
   const user = useUser();
   const { logout } = useAuth();
-  const navigate = useNavigate();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
@@ -36,13 +37,7 @@ export function AppHeader() {
 
         <div className="mx-0.5 h-3.5 w-px bg-border" />
 
-        <button
-          aria-label="Notifications"
-          className="relative flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-        >
-          <Bell className="size-3" />
-          <span className="absolute right-1.5 top-1.5 size-1 rounded-full bg-primary" />
-        </button>
+        <NotificationsMenu />
 
         <div className="mx-0.5 h-3.5 w-px bg-border" />
 
@@ -62,7 +57,7 @@ export function AppHeader() {
               <p className="text-xs text-muted-foreground">{user?.email}</p>
             </div>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => navigate(ROUTES.settings)}>
+            <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
               <Settings className="size-4" /> User Settings
             </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onSelect={() => logout()}>
@@ -71,6 +66,8 @@ export function AppHeader() {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <UserSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
     </header>
   );
 }
