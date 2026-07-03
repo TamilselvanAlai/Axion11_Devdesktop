@@ -19,10 +19,10 @@ export function WelcomeHeader({ pendingReviewCount }: { pendingReviewCount?: num
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight">
+      <h1 className="text-lg font-semibold tracking-tight">
         {getGreeting()}, {firstName}
       </h1>
-      <p className="mt-1 text-sm text-muted-foreground">
+      <p className="mt-0.5 text-xs text-muted-foreground">
         {today} · SS25 Campaign is active
         {typeof pendingReviewCount === "number" && ` · ${pendingReviewCount} assets pending review`}
       </p>

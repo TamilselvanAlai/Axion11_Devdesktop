@@ -20,16 +20,18 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
         <WelcomeHeader pendingReviewCount={snapshot?.pendingReviewCount} />
 
         <StatisticsSection stats={snapshot?.stats ?? null} />
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+        <div className="grid h-68 grid-cols-1 gap-3 lg:grid-cols-3">
+          <div className="min-h-0 lg:col-span-2">
             <WorkListSection items={snapshot?.workItems ?? null} />
           </div>
-          <CloudStorageSection storage={snapshot?.storage ?? null} />
+          <div className="min-h-0">
+            <CloudStorageSection storage={snapshot?.storage ?? null} />
+          </div>
         </div>
 
         <BackgroundServicesSection summary={snapshot?.backgroundServices ?? null} />

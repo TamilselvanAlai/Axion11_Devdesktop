@@ -12,52 +12,52 @@ function DeltaBadge({ delta }: { delta: string }) {
 export function StatisticsSection({ stats }: { stats: DashboardStatCards | null }) {
   if (!stats) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-xl" />
+          <Skeleton key={i} className="h-20 rounded-xl" />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-      <Card className="flex flex-col gap-4 p-5">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <Card className="flex flex-col gap-2 p-3.5">
         <div className="flex items-center justify-between">
-          <FileText className="size-4 text-muted-foreground" />
+          <FileText className="size-3.5 text-muted-foreground" />
           <DeltaBadge delta={stats.assetsEdited.delta} />
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Assets Edited</p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight">{stats.assetsEdited.value}</p>
-          <p className="text-sm text-muted-foreground">{stats.assetsEdited.description}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Assets Edited</p>
+          <p className="mt-0.5 text-xl font-semibold tracking-tight">{stats.assetsEdited.value}</p>
+          <p className="text-xs text-muted-foreground">{stats.assetsEdited.description}</p>
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-4 p-5">
+      <Card className="flex flex-col gap-2 p-3.5">
         <div className="flex items-center justify-between">
-          <Clock className="size-4 text-muted-foreground" />
+          <Clock className="size-3.5 text-muted-foreground" />
           <DeltaBadge delta={stats.timeManagement.delta} />
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Time Management</p>
-          <p className="mt-1 text-2xl font-semibold tracking-tight">{stats.timeManagement.value}</p>
-          <p className="text-sm text-muted-foreground">{stats.timeManagement.description}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Time Management</p>
+          <p className="mt-0.5 text-xl font-semibold tracking-tight">{stats.timeManagement.value}</p>
+          <p className="text-xs text-muted-foreground">{stats.timeManagement.description}</p>
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-4 p-5">
+      <Card className="flex flex-col gap-2 p-3.5">
         <div className="flex items-center justify-between">
-          <CheckCircle2 className="size-4 text-muted-foreground" />
+          <CheckCircle2 className="size-3.5 text-muted-foreground" />
           <DeltaBadge delta={stats.tasks.delta} />
         </div>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-foreground">Tasks</p>
-          <div className="mt-1 flex items-baseline gap-3">
-            <span className="text-2xl font-semibold tracking-tight">{stats.tasks.completed}</span>
-            <span className="text-2xl font-semibold tracking-tight text-warning">{stats.tasks.pending}</span>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Tasks</p>
+          <div className="mt-0.5 flex items-baseline gap-3">
+            <span className="text-xl font-semibold tracking-tight">{stats.tasks.completed}</span>
+            <span className="text-xl font-semibold tracking-tight text-warning">{stats.tasks.pending}</span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span>Completed</span>
             <span>Pending</span>
           </div>

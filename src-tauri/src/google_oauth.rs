@@ -38,6 +38,10 @@ struct TokenResponse {
     access_token: String,
     #[serde(default)]
     id_token: Option<String>,
+    #[serde(default)]
+    refresh_token: Option<String>,
+    #[serde(default)]
+    expires_in: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -151,7 +155,7 @@ async fn await_redirect(listener: TcpListener) -> Result<(String, String), Strin
 /// Runs the full loopback OAuth dance (open browser, wait for redirect, exchange code) and
 /// returns the token response. Shared by the Drive-connect flow and the app sign-in flow —
 /// they only differ in requested scope and what they do with the resulting tokens.
-async fn run_oauth_loopback(scopes: &str) -> Result<TokenResponse, String> {
+async fn run_oauth_loopback(scopes: &str, access_type: &str) -> Result<TokenResponse, String> {
     let (client_id, client_secret) = oauth_credentials()?;
 
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -170,12 +174,13 @@ async fn run_oauth_loopback(scopes: &str) -> Result<TokenResponse, String> {
     let auth_url = format!(
         "{AUTH_ENDPOINT}?client_id={client_id}&redirect_uri={redirect_uri}&response_type=code\
          &scope={scope}&code_challenge={challenge}&code_challenge_method=S256\
-         &state={csrf_state}&access_type=online&prompt=select_account+consent",
+         &state={csrf_state}&access_type={access_type}&prompt=select_account+consent",
         client_id = urlencoding::encode(&client_id),
         redirect_uri = urlencoding::encode(&redirect_uri),
         scope = urlencoding::encode(scopes),
         challenge = challenge,
         csrf_state = csrf_state,
+        access_type = access_type,
     );
 
     tauri_plugin_opener::open_url(auth_url, None::<String>)
@@ -211,8 +216,13 @@ async fn run_oauth_loopback(scopes: &str) -> Result<TokenResponse, String> {
 #[tauri::command]
 pub async fn google_oauth_login(
     auth_state: State<'_, GoogleAuthState>,
+    api_base_url: String,
+    auth_token: String,
 ) -> Result<GoogleAccount, String> {
-    let tokens = run_oauth_loopback(SCOPES).await?;
+    // offline: request a refresh token too, so the connection stays usable beyond the initial
+    // ~1hr access token (best-effort — see registerNativeConnection's doc comment on the
+    // backend about refresh-client mismatch).
+    let tokens = run_oauth_loopback(SCOPES, "offline").await?;
 
     let http = reqwest::Client::new();
     let userinfo_res = http
@@ -222,6 +232,23 @@ pub async fn google_oauth_login(
         .await
         .map_err(|e| format!("Failed to fetch account info: {e}"))?;
     let userinfo: UserInfoResponse = userinfo_res.json().await.map_err(|e| e.to_string())?;
+
+    // Register with our backend so browse/import (which look up a stored connection) work —
+    // best-effort: Drive is still connected locally even if this fails, so don't fail the
+    // whole sign-in over it.
+    let register_res = http
+        .post(format!("{}/cloud/google/register-native", api_base_url.trim_end_matches('/')))
+        .bearer_auth(&auth_token)
+        .json(&serde_json::json!({
+            "accessToken": tokens.access_token,
+            "refreshToken": tokens.refresh_token,
+            "expiresInSeconds": tokens.expires_in.unwrap_or(3600),
+        }))
+        .send()
+        .await;
+    if let Err(e) = register_res {
+        eprintln!("Failed to register Drive connection with backend: {e}");
+    }
 
     *auth_state.0.lock().unwrap() = Some(tokens.access_token);
 
@@ -236,7 +263,7 @@ pub async fn google_oauth_login(
 /// resulting ID token to our backend to verify and issue our own JWT.
 #[tauri::command]
 pub async fn google_app_signin(api_base_url: String) -> Result<AppSignInResponse, String> {
-    let tokens = run_oauth_loopback(SIGNIN_SCOPES).await?;
+    let tokens = run_oauth_loopback(SIGNIN_SCOPES, "online").await?;
     let id_token = tokens
         .id_token
         .ok_or_else(|| "Google did not return an ID token.".to_string())?;

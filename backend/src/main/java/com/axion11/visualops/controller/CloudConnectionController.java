@@ -42,15 +42,48 @@ public class CloudConnectionController {
 
     @PostMapping("/{provider}/auth-url")
     public ResponseEntity<Map<String, Object>> getAuthUrl(@PathVariable("provider") String provider,
+                                                          @RequestBody(required = false) Map<String, String> requestBody,
                                                           @AuthenticationPrincipal User user) {
         try {
+            // Lets the caller (e.g. the web app on whatever origin it's actually running on) receive
+            // the callback itself instead of always going to the redirect URI baked into server
+            // config — mirrors the same pattern used by /api/auth/google/auth-url for sign-in.
+            String origin = requestBody != null ? requestBody.get("origin") : null;
+            String customRedirectUri = (origin != null && !origin.isEmpty())
+                    ? origin + "/oauth/callback/" + provider
+                    : null;
             String state = "u" + user.getId() + "-" + UUID.randomUUID().toString().substring(0, 8);
-            String authUrl = cloudConnectionService.buildAuthUrl(provider, state);
+            String authUrl = cloudConnectionService.buildAuthUrl(provider, state, customRedirectUri);
             return ResponseEntity.ok(Map.of("authUrl", authUrl, "state", state, "configured", true));
         } catch (IllegalStateException e) {
             return ResponseEntity.ok(Map.of("configured", false, "error", e.getMessage()));
         } catch (Exception e) {
             log.error("Failed to build auth URL: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /**
+     * Used by the desktop app's native Drive-connect flow: it authenticates directly with
+     * Google itself (its own "Desktop app" OAuth client) and hands us the resulting tokens to
+     * store, instead of a code for us to exchange (see {@link #handleCallback}).
+     */
+    @PostMapping("/{provider}/register-native")
+    public ResponseEntity<Map<String, Object>> registerNative(@PathVariable("provider") String provider,
+                                                               @RequestBody Map<String, Object> body,
+                                                               @AuthenticationPrincipal User user) {
+        String accessToken = (String) body.get("accessToken");
+        String refreshToken = (String) body.get("refreshToken");
+        Object expiresInRaw = body.get("expiresInSeconds");
+        if (accessToken == null || accessToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing accessToken"));
+        }
+        long expiresIn = expiresInRaw != null ? ((Number) expiresInRaw).longValue() : 3600;
+        try {
+            CloudConnection conn = cloudConnectionService.registerNativeConnection(user, provider, accessToken, refreshToken, expiresIn);
+            return ResponseEntity.ok(toDto(conn));
+        } catch (Exception e) {
+            log.error("Native connection registration failed for {}: {}", provider, e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
     }
@@ -63,8 +96,9 @@ public class CloudConnectionController {
         if (code == null || code.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Missing authorization code"));
         }
+        String redirectUri = body.get("redirectUri");
         try {
-            CloudConnection conn = cloudConnectionService.handleOAuthCallback(user, provider, code);
+            CloudConnection conn = cloudConnectionService.handleOAuthCallback(user, provider, code, redirectUri);
             return ResponseEntity.ok(toDto(conn));
         } catch (Exception e) {
             log.error("OAuth callback failed for {}: {}", provider, e.getMessage());

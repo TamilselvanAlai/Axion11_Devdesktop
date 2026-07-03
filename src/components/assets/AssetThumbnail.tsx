@@ -17,13 +17,23 @@ function isUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
 }
 
-export function AssetThumbnail({ color, className }: { color: string; className?: string }) {
+export function AssetThumbnail({
+  color,
+  className,
+  rounded = true,
+}: {
+  color: string;
+  className?: string;
+  /** Set false when a flush-edge parent (e.g. a card's overflow-hidden) already clips the shape. */
+  rounded?: boolean;
+}) {
   const sizeClass = className ?? "size-9";
+  const roundedClass = rounded ? "rounded-lg" : "";
   const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
 
   if (isUrl(color)) {
     return (
-      <div className={`relative overflow-hidden rounded-lg bg-muted ${sizeClass}`}>
+      <div className={`relative overflow-hidden bg-muted ${roundedClass} ${sizeClass}`}>
         {state !== "loaded" && (
           <div
             className={`absolute inset-0 ${
@@ -52,7 +62,7 @@ export function AssetThumbnail({ color, className }: { color: string; className?
 
   return (
     <div
-      className={`flex items-center justify-center rounded-lg bg-gradient-to-br ${COLOR_CLASS[color] ?? COLOR_CLASS.neutral} ${sizeClass}`}
+      className={`flex items-center justify-center bg-gradient-to-br ${COLOR_CLASS[color] ?? COLOR_CLASS.neutral} ${roundedClass} ${sizeClass}`}
     >
       <ImageIcon className="size-4 text-white/70" />
     </div>

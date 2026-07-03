@@ -46,6 +46,11 @@ public class CloudConnectionService {
 
     /** Creates or updates a connection from an OAuth callback. */
     public CloudConnection handleOAuthCallback(User user, String provider, String authCode) {
+        return handleOAuthCallback(user, provider, authCode, null);
+    }
+
+    /** @param customRedirectUri must match exactly what was passed to {@link #buildAuthUrl}. */
+    public CloudConnection handleOAuthCallback(User user, String provider, String authCode, String customRedirectUri) {
         String normProvider = normalizeProvider(provider);
 
         String accessToken;
@@ -53,7 +58,7 @@ public class CloudConnectionService {
         long expiresIn;
 
         if (PROVIDER_GOOGLE_DRIVE.equals(normProvider)) {
-            GoogleDriveService.TokenResponse tokens = googleDriveService.exchangeCodeForTokens(authCode);
+            GoogleDriveService.TokenResponse tokens = googleDriveService.exchangeCodeForTokens(authCode, customRedirectUri);
             accessToken = tokens.accessToken;
             refreshToken = tokens.refreshToken;
             expiresIn = tokens.expiresInSeconds;
@@ -66,6 +71,33 @@ public class CloudConnectionService {
             throw new IllegalArgumentException("Unsupported provider: " + provider);
         }
 
+        return upsertConnection(user, normProvider, accessToken, refreshToken, expiresIn);
+    }
+
+    /**
+     * Registers a connection from tokens the caller already obtained itself — used by the
+     * desktop app's native Drive-connect flow, which authenticates directly with Google (via
+     * its own "Desktop app" OAuth client, to support loopback redirects) rather than going
+     * through {@link #handleOAuthCallback}'s code exchange. Without this, the desktop app could
+     * connect Drive natively but the backend would have no record of it, so browse/import would
+     * 404 — there'd be nothing to look up.
+     *
+     * Note: token refresh ({@link GoogleDriveService#refreshAccessToken}) uses the web client's
+     * credentials. A refresh token issued by the desktop client may not be refreshable through
+     * that path — acceptable for now since the access token is valid ~1hr from registration,
+     * but a future improvement would track which client issued a connection's tokens.
+     */
+    public CloudConnection registerNativeConnection(User user, String provider, String accessToken,
+                                                      String refreshToken, long expiresIn) {
+        String normProvider = normalizeProvider(provider);
+        if (!PROVIDER_GOOGLE_DRIVE.equals(normProvider)) {
+            throw new IllegalArgumentException("Native connection registration only supports Google Drive");
+        }
+        return upsertConnection(user, normProvider, accessToken, refreshToken, expiresIn);
+    }
+
+    private CloudConnection upsertConnection(User user, String normProvider, String accessToken,
+                                              String refreshToken, long expiresIn) {
         CloudConnection conn = connectionRepository.findByUserIdAndProvider(user.getId(), normProvider)
                 .orElseGet(() -> CloudConnection.builder()
                         .user(user)
@@ -208,12 +240,17 @@ public class CloudConnectionService {
     }
 
     public String buildAuthUrl(String provider, String state) {
+        return buildAuthUrl(provider, state, null);
+    }
+
+    /** @param customRedirectUri must be an exact match for a URI registered with the OAuth client. */
+    public String buildAuthUrl(String provider, String state, String customRedirectUri) {
         String normProvider = normalizeProvider(provider);
         if (PROVIDER_GOOGLE_DRIVE.equals(normProvider)) {
             if (!googleDriveService.isConfigured()) {
                 throw new IllegalStateException("Google Drive OAuth not configured");
             }
-            return googleDriveService.buildAuthorizationUrl(state);
+            return googleDriveService.buildAuthorizationUrl(state, customRedirectUri);
         } else if (PROVIDER_ONEDRIVE.equals(normProvider)) {
             if (!oneDriveService.isConfigured()) {
                 throw new IllegalStateException("OneDrive OAuth not configured");

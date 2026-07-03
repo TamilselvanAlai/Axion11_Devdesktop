@@ -1,4 +1,6 @@
 import type { GoogleAccount, GoogleDriveFile } from "@/types";
+import { env } from "@/config/env";
+import { useAuthStore } from "@/store";
 
 function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -18,7 +20,10 @@ export const googleDriveService = {
   isTauri,
 
   async login(): Promise<GoogleAccount> {
-    return tauriInvoke<GoogleAccount>("google_oauth_login");
+    return tauriInvoke<GoogleAccount>("google_oauth_login", {
+      apiBaseUrl: env.apiBaseUrl,
+      authToken: useAuthStore.getState().token ?? "",
+    });
   },
 
   async listFiles(): Promise<GoogleDriveFile[]> {

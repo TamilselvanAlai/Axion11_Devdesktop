@@ -37,14 +37,20 @@ interface CloudConnectionDto {
 export const OAUTH_BACKED_PROVIDERS: CloudProvider[] = ["google-drive", "onedrive"];
 
 export const cloudConnectionService = {
+  /** Builds an auth URL that redirects back to this app's own origin, not whatever origin
+   *  happens to be baked into the backend's default config (e.g. a separate web app). */
   async getAuthUrl(provider: CloudProvider): Promise<AuthUrlResponse> {
-    const { data } = await apiClient.post<AuthUrlResponse>(`/cloud/${PROVIDER_PATH[provider]}/auth-url`);
+    const { data } = await apiClient.post<AuthUrlResponse>(`/cloud/${PROVIDER_PATH[provider]}/auth-url`, {
+      origin: window.location.origin,
+    });
     return data;
   },
 
   async exchangeCode(provider: CloudProvider, code: string): Promise<CloudConnectionDto> {
+    const redirectUri = `${window.location.origin}/oauth/callback/${PROVIDER_PATH[provider]}`;
     const { data } = await apiClient.post<CloudConnectionDto>(`/cloud/${PROVIDER_PATH[provider]}/callback`, {
       code,
+      redirectUri,
     });
     return data;
   },

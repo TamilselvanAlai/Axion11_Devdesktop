@@ -19,13 +19,16 @@ const STATUS_BADGE_CLASS: Record<WorkItem["status"], string> = {
   completed: "bg-muted text-muted-foreground",
 };
 
-function daysUntil(iso: string) {
-  return (new Date(iso).getTime() - Date.now()) / 86_400_000;
+function daysUntil(iso: string): number | null {
+  const ms = new Date(iso).getTime();
+  if (Number.isNaN(ms)) return null;
+  return (ms - Date.now()) / 86_400_000;
 }
 
 function urgencyHex(item: WorkItem) {
   if (item.progress.done >= item.progress.total) return "#6B7280";
   const days = daysUntil(item.dueDate);
+  if (days === null) return "#6B7280";
   if (days < 0) return "#6B7280";
   if (days < 1) return "#FF5C5C";
   if (days < 3) return "#F8B400";
@@ -36,6 +39,7 @@ function urgencyHex(item: WorkItem) {
 function etaTextClass(item: WorkItem) {
   if (item.progress.done >= item.progress.total) return "text-muted-foreground";
   const days = daysUntil(item.dueDate);
+  if (days === null) return "text-muted-foreground";
   if (days < 0) return "text-muted-foreground";
   if (days < 1) return "text-danger";
   if (days < 3) return "text-warning";
@@ -44,24 +48,26 @@ function etaTextClass(item: WorkItem) {
 }
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "No due date";
+  return date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function WorkListSection({ items }: { items: WorkItem[] | null }) {
   return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div className="flex items-center justify-between">
+    <Card className="flex h-full flex-col gap-3 p-3.5">
+      <div className="flex shrink-0 items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Package className="size-4 text-primary" /> Work List
         </h2>
         <span className="text-xs text-muted-foreground">Soonest first</span>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-0.5">
         {!items ? (
           [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center gap-1 py-8 text-center">
+          <div className="flex flex-col items-center gap-1 py-4 text-center">
             <p className="text-sm font-medium">No batches yet</p>
             <p className="text-xs text-muted-foreground">Batches you create will show up here, soonest due date first.</p>
           </div>

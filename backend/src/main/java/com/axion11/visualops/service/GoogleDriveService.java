@@ -54,9 +54,20 @@ public class GoogleDriveService {
     }
 
     public String buildAuthorizationUrl(String state) {
+        return buildAuthorizationUrl(state, null);
+    }
+
+    /**
+     * @param customRedirectUri when set, overrides the configured {@code google.drive.redirect-uri}
+     *                          — lets a caller (e.g. the web app running on a dev/prod origin other
+     *                          than the one baked into server config) receive the callback itself,
+     *                          as long as that exact URI is also registered with the OAuth client.
+     */
+    public String buildAuthorizationUrl(String state, String customRedirectUri) {
+        String finalRedirectUri = (customRedirectUri != null && !customRedirectUri.isEmpty()) ? customRedirectUri : redirectUri;
         return AUTH_ENDPOINT
                 + "?client_id=" + urlEncode(clientId)
-                + "&redirect_uri=" + urlEncode(redirectUri)
+                + "&redirect_uri=" + urlEncode(finalRedirectUri)
                 + "&response_type=code"
                 + "&scope=" + urlEncode(SCOPES)
                 + "&access_type=offline"
@@ -65,8 +76,15 @@ public class GoogleDriveService {
     }
 
     /** Exchange authorization code for access + refresh tokens. */
-    @SuppressWarnings("unchecked")
     public TokenResponse exchangeCodeForTokens(String authCode) {
+        return exchangeCodeForTokens(authCode, null);
+    }
+
+    /** Same as above, but with the redirect_uri that was actually used for the authorize step
+     *  (must match exactly, or Google rejects the exchange). */
+    @SuppressWarnings("unchecked")
+    public TokenResponse exchangeCodeForTokens(String authCode, String customRedirectUri) {
+        String finalRedirectUri = (customRedirectUri != null && !customRedirectUri.isEmpty()) ? customRedirectUri : redirectUri;
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
 
@@ -74,7 +92,7 @@ public class GoogleDriveService {
         form.add("code", authCode);
         form.add("client_id", clientId);
         form.add("client_secret", clientSecret);
-        form.add("redirect_uri", redirectUri);
+        form.add("redirect_uri", finalRedirectUri);
         form.add("grant_type", "authorization_code");
 
         ResponseEntity<Map> response = restTemplate.postForEntity(

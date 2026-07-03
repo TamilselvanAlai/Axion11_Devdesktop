@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, Zap } from "lucide-react";
+import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, Zap, Cloud, HardDrive } from "lucide-react";
 import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
 import { ProjectTree } from "@/components/navigation/ProjectTree";
 import { useProjectTree } from "@/hooks/useProjectTree";
@@ -46,6 +46,11 @@ export function AppSidebar() {
   const primaryDrive = localDrives
     ? [...localDrives].sort((a, b) => b.totalBytes - a.totalBytes)[0]
     : null;
+  const cacheUsageGb = 18.4;
+  const freeStorageGb = primaryDrive ? primaryDrive.availableBytes / (1024 * 1024 * 1024) : 35.6;
+  const storageTotalGb = cacheUsageGb + freeStorageGb;
+  const cachePercent = Math.round((cacheUsageGb / storageTotalGb) * 100);
+
   const [collapsed, setCollapsed] = useState(false);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [flyoutTop, setFlyoutTop] = useState(0);
@@ -139,10 +144,30 @@ export function AppSidebar() {
         </div>
       )}
 
-      <div className="border-t border-sidebar-border px-4 py-3 text-xs text-sidebar-foreground/60">
+      <div className={`border-t border-sidebar-border text-xs text-sidebar-foreground/60 ${collapsed ? "px-0 py-3" : "px-4 py-3"}`}>
         {collapsed ? (
-          <div className="flex flex-col items-center gap-2">
-            <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} />
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative" title={`Cloud Sync — ${SYNC_LABEL[syncStatus]}`}>
+              <Cloud className={`size-4 ${SYNC_TEXT_CLASS[syncStatus]}`} />
+              <span
+                className={`absolute -right-0.5 -top-0.5 size-1.5 rounded-full ring-2 ring-sidebar ${SYNC_DOT_CLASS[syncStatus]}`}
+              />
+            </div>
+            <div
+              className="flex flex-col items-center gap-1.5"
+              title={`Cache Usage: ${cacheUsageGb.toFixed(1)} GB · Free Storage: ${freeStorageGb.toFixed(1)} GB`}
+            >
+              <HardDrive className="size-3.5 text-sidebar-foreground/50" />
+              <div className="h-10 w-1 overflow-hidden rounded-full bg-white/10">
+                <div
+                  className="w-full rounded-full bg-primary"
+                  style={{ height: `${cachePercent}%`, marginTop: `${100 - cachePercent}%` }}
+                />
+              </div>
+              <span className="font-mono text-[9px] leading-none">
+                {Math.round(cacheUsageGb)}/{Math.round(storageTotalGb)}
+              </span>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -155,10 +180,10 @@ export function AppSidebar() {
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <span>Cache Usage</span>
-                <span className="font-mono">18.4 GB</span>
+                <span className="font-mono">{cacheUsageGb.toFixed(1)} GB</span>
               </div>
               <div className="h-1 w-full overflow-hidden rounded-full bg-white/5">
-                <div className="h-full w-[34%] rounded-full bg-primary" />
+                <div className="h-full rounded-full bg-primary" style={{ width: `${cachePercent}%` }} />
               </div>
             </div>
             <div className="flex items-center justify-between">
