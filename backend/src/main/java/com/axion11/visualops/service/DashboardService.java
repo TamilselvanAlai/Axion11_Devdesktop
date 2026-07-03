@@ -27,12 +27,11 @@ public class DashboardService {
                 long totalProjects = projectRepository.count();
                 long totalAssets = imageUploadRepository.count();
 
-                long approvedAssets = imageUploadRepository.findAll().stream()
-                                .filter(a -> "approved".equalsIgnoreCase(a.getApprovalStatus())).count();
-                long pendingReview = imageUploadRepository.findAll().stream()
-                                .filter(a -> a.getApprovalStatus() == null || "pending".equalsIgnoreCase(a.getApprovalStatus())).count();
-                long rejectedAssets = imageUploadRepository.findAll().stream()
-                                .filter(a -> "rejected".equalsIgnoreCase(a.getApprovalStatus())).count();
+                // Counted at the DB level instead of loading every upload row into memory —
+                // this was three full-table scans on every dashboard load.
+                long approvedAssets = imageUploadRepository.countApproved();
+                long pendingReview = imageUploadRepository.countPending();
+                long rejectedAssets = imageUploadRepository.countRejected();
 
                 return DashboardStats.builder()
                                 .totalProjects((int) totalProjects)
@@ -45,13 +44,17 @@ public class DashboardService {
 
         @Transactional(readOnly = true)
         public List<DashboardBatch> getBatches() {
-                return batchRepository.findAllByOrderByIdAsc().stream()
-                                .map(this::mapToDashboardBatch)
+                java.util.Map<Long, Long> assetCountsByBatch = imageUploadRepository.countGroupedByBatchId().stream()
+                                .collect(Collectors.toMap(
+                                                row -> (Long) row[0],
+                                                row -> (Long) row[1]));
+                return batchRepository.findAllWithProjectOrderByIdAsc().stream()
+                                .map(batch -> mapToDashboardBatch(batch, assetCountsByBatch))
                                 .collect(Collectors.toList());
         }
 
-        private DashboardBatch mapToDashboardBatch(Batch batch) {
-                int assetCount = imageUploadRepository.findByBatchIdOrderByCreatedAtDesc(batch.getId()).size();
+        private DashboardBatch mapToDashboardBatch(Batch batch, java.util.Map<Long, Long> assetCountsByBatch) {
+                int assetCount = assetCountsByBatch.getOrDefault(batch.getId(), 0L).intValue();
                 String projId = batch.getProject() != null ? batch.getProject().getId().toString() : null;
                 String projName = batch.getProject() != null ? batch.getProject().getName() : null;
 

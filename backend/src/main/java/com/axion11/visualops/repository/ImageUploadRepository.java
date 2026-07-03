@@ -1,6 +1,7 @@
 package com.axion11.visualops.repository;
 
 import com.axion11.visualops.models.ImageUpload;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -12,9 +13,18 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ImageUploadRepository extends JpaRepository<ImageUpload, Long> {
+    // These power the main asset list views (Assets grid/table) — @EntityGraph fetches the
+    // lazy project/batch/uploadedBy associations (and tags) in the same query instead of one
+    // extra query per association per row, which otherwise scales with list size.
+    @EntityGraph(attributePaths = {"tags", "project", "batch", "uploadedBy"})
     List<ImageUpload> findByProjectIdOrderByCreatedAtDesc(Long projectId);
+
+    @EntityGraph(attributePaths = {"tags", "project", "batch", "uploadedBy"})
     List<ImageUpload> findAllByOrderByCreatedAtDesc();
+
+    @EntityGraph(attributePaths = {"tags", "project", "batch", "uploadedBy"})
     List<ImageUpload> findByBatchIdOrderByCreatedAtDesc(Long batchId);
+
     List<ImageUpload> findByImageQualityQcCheckIsNullOrImageQualityQcCheckNot(String status);
 
     Optional<ImageUpload> findByExternalId(String externalId);
@@ -26,10 +36,25 @@ public interface ImageUploadRepository extends JpaRepository<ImageUpload, Long> 
     List<ImageUpload> findByOriginalUploadIdOrderByVersionNumberAsc(Long originalUploadId);
 
     /** Case-insensitive file-name substring search, scoped to one project — powers the DAM search bar. */
+    @EntityGraph(attributePaths = {"tags", "project", "batch", "uploadedBy"})
     List<ImageUpload> findByProjectIdAndFileNameContainingIgnoreCaseOrderByCreatedAtDesc(Long projectId, String fileName);
 
     /** Case-insensitive file-name substring search across every project — DAM search bar with no project filter. */
+    @EntityGraph(attributePaths = {"tags", "project", "batch", "uploadedBy"})
     List<ImageUpload> findByFileNameContainingIgnoreCaseOrderByCreatedAtDesc(String fileName);
+
+    @Query("SELECT COUNT(u) FROM ImageUpload u WHERE LOWER(u.approvalStatus) = 'approved'")
+    long countApproved();
+
+    @Query("SELECT COUNT(u) FROM ImageUpload u WHERE LOWER(u.approvalStatus) = 'rejected'")
+    long countRejected();
+
+    @Query("SELECT COUNT(u) FROM ImageUpload u WHERE u.approvalStatus IS NULL OR LOWER(u.approvalStatus) = 'pending'")
+    long countPending();
+
+    /** One grouped query for all batches' upload counts, instead of querying per batch (N+1). */
+    @Query("SELECT u.batch.id, COUNT(u) FROM ImageUpload u WHERE u.batch IS NOT NULL GROUP BY u.batch.id")
+    List<Object[]> countGroupedByBatchId();
 
     @Query("SELECT COUNT(u) FROM ImageUpload u WHERE u.batch.id = :batchId AND LOWER(u.approvalStatus) = 'approved'")
     int countApprovedByBatchId(@Param("batchId") Long batchId);

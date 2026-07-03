@@ -41,6 +41,14 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Configure desktop Google OAuth credentials
+        shell: bash
+        run: |
+          cat > src-tauri/.env << EOF
+          GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          EOF
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

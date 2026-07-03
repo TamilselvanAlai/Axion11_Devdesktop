@@ -32,7 +32,10 @@ export default function LoginPage() {
       }
       window.location.href = authUrl;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Google sign-in failed.");
+      // Tauri's invoke() rejects with the raw Rust error string (not an Error instance),
+      // so surface that directly instead of masking it behind a generic message.
+      const message = err instanceof Error ? err.message : typeof err === "string" ? err : "Google sign-in failed.";
+      toast.error(message);
     }
   }
 

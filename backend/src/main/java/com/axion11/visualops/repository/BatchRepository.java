@@ -20,6 +20,10 @@ public interface BatchRepository extends JpaRepository<Batch, Long> {
     /** Stable ordering for list views — plain findAll() has no guaranteed row order. */
     List<Batch> findAllByOrderByIdAsc();
 
+    /** Same as above but eagerly fetches the (lazy) project association to avoid N+1 per batch. */
+    @Query("SELECT b FROM Batch b LEFT JOIN FETCH b.project ORDER BY b.id ASC")
+    List<Batch> findAllWithProjectOrderByIdAsc();
+
     List<Batch> findByProjectIdAndParentBatchIsNull(Long projectId);
 
     List<Batch> findByParentBatchId(Long parentBatchId);
