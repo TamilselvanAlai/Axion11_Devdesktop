@@ -2,7 +2,6 @@ package com.axion11.visualops.service;
 
 import com.axion11.visualops.models.CloudConnection;
 import com.axion11.visualops.models.User;
-import com.axion11.visualops.models.Role;
 import com.axion11.visualops.repository.CloudConnectionRepository;
 import com.axion11.visualops.repository.SyncedFileRepository;
 import lombok.RequiredArgsConstructor;
@@ -33,39 +32,16 @@ public class CloudConnectionService {
     private final OneDriveService oneDriveService;
 
     public List<CloudConnection> getUserConnections(User user) {
-        List<CloudConnection> userConns = new java.util.ArrayList<>(connectionRepository.findByUserId(user.getId()));
-        
-        // If user is ADMIN or SUPER_ADMIN, check if they are missing GOOGLE_DRIVE
-        if (user.getRole() == Role.ADMIN || user.getRole() == Role.SUPER_ADMIN) {
-            boolean hasGoogle = userConns.stream()
-                    .anyMatch(c -> PROVIDER_GOOGLE_DRIVE.equals(c.getProvider()));
-            if (!hasGoogle) {
-                // Find any GOOGLE_DRIVE connection in the DB
-                Optional<CloudConnection> sharedGoogleConn = connectionRepository.findAll().stream()
-                        .filter(c -> PROVIDER_GOOGLE_DRIVE.equals(c.getProvider()))
-                        .findFirst();
-                sharedGoogleConn.ifPresent(userConns::add);
-            }
-        }
-        return userConns;
+        // Each user only ever sees their own connections — never another user's,
+        // regardless of role. (Previously admins with no connection of their own
+        // fell back to whichever Google Drive connection existed first in the
+        // whole database, leaking another user's Drive contents.)
+        return connectionRepository.findByUserId(user.getId());
     }
 
     public Optional<CloudConnection> findConnection(User user, String provider) {
         String normProvider = normalizeProvider(provider);
-        Optional<CloudConnection> conn = connectionRepository.findByUserIdAndProvider(user.getId(), normProvider);
-        if (conn.isPresent()) {
-            return conn;
-        }
-        
-        // If not found, and provider is GOOGLE_DRIVE, and user is ADMIN or SUPER_ADMIN
-        if (PROVIDER_GOOGLE_DRIVE.equals(normProvider) && 
-            (user.getRole() == Role.ADMIN || user.getRole() == Role.SUPER_ADMIN)) {
-            return connectionRepository.findAll().stream()
-                    .filter(c -> PROVIDER_GOOGLE_DRIVE.equals(c.getProvider()))
-                    .findFirst();
-        }
-        
-        return Optional.empty();
+        return connectionRepository.findByUserIdAndProvider(user.getId(), normProvider);
     }
 
     /** Creates or updates a connection from an OAuth callback. */

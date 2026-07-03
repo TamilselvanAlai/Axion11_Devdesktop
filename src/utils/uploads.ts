@@ -35,6 +35,7 @@ export function createAssetsFromFiles(files: FileList | File[], projectId: strin
     return {
       id: `upload_${Date.now()}_${index}`,
       projectId,
+      batchId: projectId.startsWith("b-") ? projectId : null,
       name,
       status: "processing",
       fileType: inferFileType(file.name),

@@ -70,7 +70,7 @@ export function AppSidebar() {
   return (
     <aside
       className="relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 md:flex"
-      style={{ width: collapsed ? 60 : 256 }}
+      style={{ width: collapsed ? 56 : 216 }}
     >
       <button
         type="button"
@@ -131,7 +131,7 @@ export function AppSidebar() {
         <div
           onMouseEnter={openFlyout}
           onMouseLeave={scheduleCloseFlyout}
-          style={{ top: flyoutTop, left: 60 }}
+          style={{ top: flyoutTop, left: 56 }}
           className="fixed z-30 w-56 rounded-lg border border-sidebar-border bg-popover p-2 shadow-xl"
         >
           <p className="px-2 pb-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/40">Projects</p>

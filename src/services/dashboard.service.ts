@@ -172,6 +172,9 @@ export const dashboardService = {
 
     const stats = mapStats(dashboardStats, taskGroups);
 
+    if (batchesRes.status === "rejected") {
+      console.error("Failed to load dashboard batches:", batchesRes.reason);
+    }
     const workItems =
       batchesRes.status === "fulfilled" ? mapWorkItems(batchesRes.value.data) : [];
 

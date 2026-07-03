@@ -58,9 +58,15 @@ export function WorkListSection({ items }: { items: WorkItem[] | null }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        {!items
-          ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)
-          : items.map((item) => {
+        {!items ? (
+          [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)
+        ) : items.length === 0 ? (
+          <div className="flex flex-col items-center gap-1 py-8 text-center">
+            <p className="text-sm font-medium">No batches yet</p>
+            <p className="text-xs text-muted-foreground">Batches you create will show up here, soonest due date first.</p>
+          </div>
+        ) : (
+          items.map((item) => {
               const color = urgencyHex(item);
               return (
                 <div key={item.id} className="flex flex-col gap-1.5">
@@ -89,7 +95,8 @@ export function WorkListSection({ items }: { items: WorkItem[] | null }) {
                   </div>
                 </div>
               );
-            })}
+            })
+        )}
       </div>
     </Card>
   );

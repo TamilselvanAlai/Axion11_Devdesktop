@@ -30,7 +30,7 @@ export function RightPanel() {
   return (
     <aside
       className="hidden shrink-0 flex-col border-l border-border bg-muted transition-all duration-200 lg:relative lg:flex"
-      style={{ width: collapsed ? 0 : 320, minWidth: collapsed ? 0 : 320 }}
+      style={{ width: collapsed ? 0 : 280, minWidth: collapsed ? 0 : 280 }}
     >
       <button
         type="button"

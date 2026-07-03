@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ImageIcon } from "lucide-react";
 
 const COLOR_CLASS: Record<string, string> = {
@@ -18,23 +19,32 @@ function isUrl(value: string): boolean {
 
 export function AssetThumbnail({ color, className }: { color: string; className?: string }) {
   const sizeClass = className ?? "size-9";
+  const [state, setState] = useState<"loading" | "loaded" | "error">("loading");
 
   if (isUrl(color)) {
     return (
-      <div className={`overflow-hidden rounded-lg bg-muted ${sizeClass}`}>
+      <div className={`relative overflow-hidden rounded-lg bg-muted ${sizeClass}`}>
+        {state !== "loaded" && (
+          <div
+            className={`absolute inset-0 ${
+              state === "loading"
+                ? "animate-pulse bg-gradient-to-br from-white/5 to-white/10"
+                : "flex items-center justify-center bg-gradient-to-br from-neutral-500/40 to-neutral-700/40"
+            }`}
+          >
+            {state === "error" && <ImageIcon className="size-4 text-white/70" />}
+          </div>
+        )}
         <img
           src={color}
           alt=""
-          className="h-full w-full object-cover"
+          className={`h-full w-full object-cover transition-opacity duration-200 ${
+            state === "loaded" ? "opacity-100" : "opacity-0"
+          }`}
           loading="lazy"
-          onError={(e) => {
-            const target = e.currentTarget;
-            target.style.display = "none";
-            target.parentElement?.classList.add(
-              "flex", "items-center", "justify-center",
-              "bg-gradient-to-br", "from-neutral-500/40", "to-neutral-700/40"
-            );
-          }}
+          decoding="async"
+          onLoad={() => setState("loaded")}
+          onError={() => setState("error")}
         />
       </div>
     );

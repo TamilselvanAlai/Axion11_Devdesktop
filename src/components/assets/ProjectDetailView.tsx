@@ -2,9 +2,21 @@ import { AssetsToolbar } from "@/components/assets/AssetsToolbar";
 import { AssetsTable } from "@/components/assets/AssetsTable";
 import { AssetsGrid } from "@/components/assets/AssetsGrid";
 import { ProjectFolderTable } from "@/components/assets/ProjectFolderTable";
+import { AssetsSkeleton } from "@/components/assets/AssetsSkeleton";
 import { ErrorState } from "@/components/common/ErrorState";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectView } from "@/hooks/useProjectView";
 import { useAssetStore } from "@/store";
+
+function FolderTableSkeleton() {
+  return (
+    <div className="flex flex-col gap-2">
+      {Array.from({ length: 5 }, (_, i) => (
+        <Skeleton key={i} className="h-11 w-full rounded-lg" />
+      ))}
+    </div>
+  );
+}
 
 export function ProjectDetailView({ projectId }: { projectId: string }) {
   const { node, isFolder, assets, folderSummary, status } = useProjectView(projectId);
@@ -25,7 +37,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
           countLabel={node.name}
         />
         {status === "loading" && folderSummary.length === 0 ? (
-          <div className="h-40 animate-pulse rounded-lg bg-muted" />
+          <FolderTableSkeleton />
         ) : (
           <ProjectFolderTable folders={folderSummary} />
         )}
@@ -37,7 +49,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
     <div className="flex flex-col gap-2">
       <AssetsToolbar breadcrumbs={breadcrumbs} count={assets.length} countLabel={node.name} projectId={node.id} />
       {status === "loading" && assets.length === 0 ? (
-        <div className="h-40 animate-pulse rounded-lg bg-muted" />
+        <AssetsSkeleton viewMode={viewMode} />
       ) : viewMode === "grid" ? (
         <AssetsGrid assets={assets} />
       ) : (

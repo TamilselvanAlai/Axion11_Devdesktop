@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search, ChevronDown, Settings, LogOut } from "lucide-react";
+import { ChevronDown, Settings, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CloudSyncMenu } from "@/components/shared/CloudSyncMenu";
 import { NotificationsMenu } from "@/components/shared/NotificationsMenu";
 import { UserSettingsDialog } from "@/components/shared/UserSettingsDialog";
+import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -22,14 +23,7 @@ export function AppHeader() {
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
       <div className="flex min-w-0 flex-1 justify-center">
-        <div className="flex w-full max-w-100 items-center gap-1.5 rounded-lg border border-border bg-muted px-2.5 py-1.5 transition-colors focus-within:border-white/20">
-          <Search className="size-3 shrink-0 text-muted-foreground" />
-          <input
-            type="search"
-            placeholder="Search assets, batches, SKUs…"
-            className="w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-          />
-        </div>
+        <GlobalSearch />
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 text-xs">

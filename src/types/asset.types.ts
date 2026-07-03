@@ -10,6 +10,8 @@ export interface AssetAssignee {
 export interface Asset {
   id: string;
   projectId: string;
+  /** Tree-node-compatible id of the batch this asset lives in (e.g. "b-12"), for navigation. */
+  batchId: string | null;
   name: string;
   status: AssetStatus;
   fileType: AssetFileType;

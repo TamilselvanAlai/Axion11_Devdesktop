@@ -47,6 +47,7 @@ function toAsset(dto: ImageUploadApiDto): Asset {
   return {
     id: String(dto.id),
     projectId: dto.projectId ? String(dto.projectId) : "",
+    batchId: dto.batchId ? `b-${dto.batchId}` : null,
     name: dto.fileName,
     status: qcToStatus(dto.imageQualityQcCheck),
     fileType: mimeToFileType(dto.contentType),
@@ -54,7 +55,9 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     version: `v${dto.versionNumber ?? 1}`,
     assignee: { name: assigneeName, initials: getInitials(assigneeName) },
     updatedAt: dto.createdAt ?? new Date().toISOString(),
-    thumbnailColor: dto.publicUrl || dto.previewUrl || THUMB_COLORS[dto.id % THUMB_COLORS.length],
+    // Prefer the generated preview (small, web-friendly JPEG) over the full-size original —
+    // originals can be huge TIFF/PSD/RAW files that browsers can't even decode as <img>.
+    thumbnailColor: dto.previewUrl || dto.publicUrl || THUMB_COLORS[dto.id % THUMB_COLORS.length],
   };
 }
 
@@ -97,6 +100,13 @@ export const assetService = {
   async getProjectTree(): Promise<ProjectNode[]> {
     const { data } = await apiClient.get<ProjectTreeApiNode[]>("/projects/tree");
     return data.filter((n) => n.type !== "asset").map(toProjectNode);
+  },
+
+  async searchByName(query: string): Promise<Asset[]> {
+    const { data } = await apiClient.get<ImageUploadApiDto[]>(
+      `/uploads/search-by-name?q=${encodeURIComponent(query)}`
+    );
+    return data.map(toAsset);
   },
 
   async listAssets(scope: AssetScope): Promise<Asset[]> {
