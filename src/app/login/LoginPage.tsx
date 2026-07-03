@@ -2,10 +2,39 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Zap } from "lucide-react";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { googleAuthService } from "@/services/googleAuth.service";
+import { useAuthStore } from "@/store";
 import { ROUTES } from "@/constants/routes";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const setSession = useAuthStore((s) => s.setSession);
+
+  async function handleSso(provider: "Google" | "Microsoft Live") {
+    if (provider !== "Google") {
+      toast.info(`${provider} sign-in isn't wired up yet.`);
+      return;
+    }
+
+    try {
+      if (googleAuthService.isTauri()) {
+        const session = await googleAuthService.signInNative();
+        setSession(session);
+        toast.success("Signed in successfully");
+        navigate(ROUTES.dashboard, { replace: true });
+        return;
+      }
+
+      const { authUrl, configured, error } = await googleAuthService.getBrowserAuthUrl();
+      if (!configured || !authUrl) {
+        toast.error(error ?? "Google sign-in isn't configured on the server yet.");
+        return;
+      }
+      window.location.href = authUrl;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Google sign-in failed.");
+    }
+  }
 
   return (
     <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-4 py-12">
@@ -41,7 +70,7 @@ export default function LoginPage() {
               onForgotPassword={() =>
                 toast.info("Password reset isn't wired up yet — contact your workspace admin.")
               }
-              onSso={(provider) => toast.info(`${provider} sign-in isn't wired up yet.`)}
+              onSso={handleSso}
             />
           </div>
         </div>

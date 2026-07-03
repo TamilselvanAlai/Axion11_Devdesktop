@@ -43,6 +43,8 @@ export interface AssetDetail extends Asset {
   modifiedAt: string;
   checksumOk: boolean;
   locked: boolean;
+  /** Full-resolution original file, for opening/editing — distinct from the small preview used elsewhere. */
+  downloadUrl: string | null;
 }
 
 export interface AssetComment {

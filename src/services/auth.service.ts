@@ -26,23 +26,29 @@ function mapRole(role: string): UserRole {
   return "viewer";
 }
 
+function buildSession(data: AuthApiResponse): AuthSession {
+  return {
+    user: {
+      id: data.email,
+      name: data.name,
+      email: data.email,
+      role: mapRole(data.role),
+      initials: getInitials(data.name),
+    },
+    token: data.token,
+    expiresAt: Date.now() + env.sessionTtlMs,
+  };
+}
+
 export const authService = {
+  buildSession,
+
   async login(credentials: LoginCredentials): Promise<AuthSession> {
     const { data } = await apiClient.post<AuthApiResponse>("/auth/login", {
       email: credentials.email,
       password: credentials.password,
     });
-    return {
-      user: {
-        id: data.email,
-        name: data.name,
-        email: data.email,
-        role: mapRole(data.role),
-        initials: getInitials(data.name),
-      },
-      token: data.token,
-      expiresAt: Date.now() + env.sessionTtlMs,
-    };
+    return buildSession(data);
   },
 
   async logout(): Promise<void> {

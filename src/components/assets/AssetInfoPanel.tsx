@@ -1,7 +1,17 @@
-import { CheckCircle, Lock, Eye } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { CheckCircle, Lock, Eye, Loader2, RefreshCw } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { formatRelativeTime } from "@/utils/formatters";
+import { localSyncService } from "@/services/localSync.service";
+import { buildAssetRelativePath } from "@/utils/assetPath";
+import { useAssetStore } from "@/store";
 import type { AssetDetail } from "@/types";
+
+function isUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+}
 
 const STATUS_META: Record<AssetDetail["status"], { label: string; dotClass: string; textClass: string }> = {
   approved: { label: "Approved", dotClass: "bg-success", textClass: "text-success" },
@@ -23,6 +33,50 @@ function formatDateTime(iso: string) {
 
 export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
   const status = STATUS_META[detail.status];
+  const projectTree = useAssetStore((s) => s.projectTree);
+  const [opening, setOpening] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const isTauri = localSyncService.isTauri();
+  const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
+
+  async function handleOpenFile() {
+    if (!detail.downloadUrl) {
+      toast.error("No file available to open.");
+      return;
+    }
+    if (!isTauri) {
+      window.open(detail.downloadUrl, "_blank");
+      return;
+    }
+    if (!detail.batchId) {
+      toast.error("This asset isn't linked to a batch, so changes can't be synced back.");
+      return;
+    }
+
+    setOpening(true);
+    try {
+      const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+      await localSyncService.openAndSync({
+        downloadUrl: detail.downloadUrl,
+        relativePath,
+        assetId: detail.id,
+        batchId: detail.batch,
+      });
+      toast.success("Opened — saving the file will sync a new version automatically.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open file.");
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  function handlePreview() {
+    if (!previewableUrl) {
+      toast.error("No previewable image available for this file.");
+      return;
+    }
+    setPreviewOpen(true);
+  }
 
   const rows = [
     { label: "Filename", value: detail.filename },
@@ -73,14 +127,27 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
 
       <div className="shrink-0 border-t border-border p-4">
         <div className="grid grid-cols-2 gap-2">
-          <button className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent">
-            <Eye className="size-3" /> Open File
+          <button
+            onClick={handleOpenFile}
+            disabled={opening || !detail.downloadUrl}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {opening ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+            {opening ? "Opening…" : "Open File"}
           </button>
-          <button className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground/70 transition-colors hover:bg-white/10">
+          <button
+            onClick={handlePreview}
+            disabled={!previewableUrl}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <Eye className="size-3" /> Preview
           </button>
         </div>
       </div>
+
+      {previewOpen && previewableUrl && (
+        <AssetPreviewModal imageUrl={previewableUrl} filename={detail.filename} onClose={() => setPreviewOpen(false)} />
+      )}
     </div>
   );
 }

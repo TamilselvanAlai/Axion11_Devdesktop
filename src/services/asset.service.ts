@@ -71,6 +71,7 @@ function toAssetDetail(dto: ImageUploadApiDto): AssetDetail {
     modifiedAt: dto.createdAt ?? "—",
     checksumOk: dto.imageQualityQcCheck === "PASSED",
     locked: false,
+    downloadUrl: dto.publicUrl || dto.previewUrl || null,
   };
 }
 

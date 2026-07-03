@@ -12,6 +12,7 @@ const TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 const USERINFO_ENDPOINT: &str = "https://www.googleapis.com/oauth2/v3/userinfo";
 const DRIVE_FILES_ENDPOINT: &str = "https://www.googleapis.com/drive/v3/files";
 const SCOPES: &str = "openid email profile https://www.googleapis.com/auth/drive.readonly";
+const SIGNIN_SCOPES: &str = "openid email profile";
 
 #[derive(Default)]
 pub struct GoogleAuthState(pub Mutex<Option<String>>);
@@ -35,6 +36,28 @@ pub struct DriveFile {
 #[derive(Deserialize)]
 struct TokenResponse {
     access_token: String,
+    #[serde(default)]
+    id_token: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct AppSignInResponse {
+    pub token: String,
+    pub email: String,
+    pub name: String,
+    pub role: String,
+    #[serde(rename = "teamName")]
+    pub team_name: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct BackendAuthResponse {
+    token: String,
+    email: String,
+    name: String,
+    role: String,
+    #[serde(rename = "teamName", default)]
+    team_name: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -125,10 +148,10 @@ async fn await_redirect(listener: TcpListener) -> Result<(String, String), Strin
     }
 }
 
-#[tauri::command]
-pub async fn google_oauth_login(
-    auth_state: State<'_, GoogleAuthState>,
-) -> Result<GoogleAccount, String> {
+/// Runs the full loopback OAuth dance (open browser, wait for redirect, exchange code) and
+/// returns the token response. Shared by the Drive-connect flow and the app sign-in flow —
+/// they only differ in requested scope and what they do with the resulting tokens.
+async fn run_oauth_loopback(scopes: &str) -> Result<TokenResponse, String> {
     let (client_id, client_secret) = oauth_credentials()?;
 
     let listener = TcpListener::bind("127.0.0.1:0")
@@ -150,7 +173,7 @@ pub async fn google_oauth_login(
          &state={csrf_state}&access_type=online&prompt=select_account+consent",
         client_id = urlencoding::encode(&client_id),
         redirect_uri = urlencoding::encode(&redirect_uri),
-        scope = urlencoding::encode(SCOPES),
+        scope = urlencoding::encode(scopes),
         challenge = challenge,
         csrf_state = csrf_state,
     );
@@ -182,8 +205,16 @@ pub async fn google_oauth_login(
         let body = token_res.text().await.unwrap_or_default();
         return Err(format!("Google rejected the token exchange: {body}"));
     }
-    let tokens: TokenResponse = token_res.json().await.map_err(|e| e.to_string())?;
+    token_res.json().await.map_err(|e| e.to_string())
+}
 
+#[tauri::command]
+pub async fn google_oauth_login(
+    auth_state: State<'_, GoogleAuthState>,
+) -> Result<GoogleAccount, String> {
+    let tokens = run_oauth_loopback(SCOPES).await?;
+
+    let http = reqwest::Client::new();
     let userinfo_res = http
         .get(USERINFO_ENDPOINT)
         .bearer_auth(&tokens.access_token)
@@ -197,6 +228,39 @@ pub async fn google_oauth_login(
     Ok(GoogleAccount {
         email: userinfo.email,
         name: if userinfo.name.is_empty() { "Google User".to_string() } else { userinfo.name },
+    })
+}
+
+/// Signs into the Axion app itself via Google — distinct from `google_oauth_login`, which
+/// connects Google Drive as a cloud storage source. Completes OAuth locally, then hands the
+/// resulting ID token to our backend to verify and issue our own JWT.
+#[tauri::command]
+pub async fn google_app_signin(api_base_url: String) -> Result<AppSignInResponse, String> {
+    let tokens = run_oauth_loopback(SIGNIN_SCOPES).await?;
+    let id_token = tokens
+        .id_token
+        .ok_or_else(|| "Google did not return an ID token.".to_string())?;
+
+    let http = reqwest::Client::new();
+    let res = http
+        .post(format!("{}/auth/google/token-signin", api_base_url.trim_end_matches('/')))
+        .json(&serde_json::json!({ "idToken": id_token }))
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the server: {e}"))?;
+
+    if !res.status().is_success() {
+        let body = res.text().await.unwrap_or_default();
+        return Err(format!("Sign-in failed: {body}"));
+    }
+
+    let auth: BackendAuthResponse = res.json().await.map_err(|e| e.to_string())?;
+    Ok(AppSignInResponse {
+        token: auth.token,
+        email: auth.email,
+        name: auth.name,
+        role: auth.role,
+        team_name: auth.team_name,
     })
 }
 

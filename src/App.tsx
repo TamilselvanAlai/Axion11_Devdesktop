@@ -4,6 +4,7 @@ import { RequireAuth } from "@/middleware/requireAuth";
 import { ROUTES } from "@/constants/routes";
 import LoginPage from "@/app/login/LoginPage";
 import OAuthCallbackPage from "@/app/oauth/OAuthCallbackPage";
+import GoogleSignInCallbackPage from "@/app/oauth/GoogleSignInCallbackPage";
 import DashboardPage from "@/app/dashboard/DashboardPage";
 import ProjectsPage from "@/app/projects/ProjectsPage";
 import ProjectDetailPage from "@/app/projects/ProjectDetailPage";
@@ -17,6 +18,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path={ROUTES.login} element={<LoginPage />} />
+          <Route path="/oauth/callback/google-signin" element={<GoogleSignInCallbackPage />} />
           <Route path="/oauth/callback/:provider" element={<OAuthCallbackPage />} />
 
           <Route element={<RequireAuth />}>

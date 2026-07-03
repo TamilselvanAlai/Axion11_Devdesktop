@@ -95,6 +95,17 @@ public class AuthService {
     @Transactional
     public AuthResponseDto signInWithGoogle(String authCode, String customRedirectUri) {
         GoogleSignInService.GoogleUserInfo info = googleSignInService.exchangeCodeForUserInfo(authCode, customRedirectUri);
+        return signInWithGoogleUserInfo(info);
+    }
+
+    /** Used by the desktop app, which completes its own OAuth handshake and hands us a verified ID token. */
+    @Transactional
+    public AuthResponseDto signInWithGoogleIdToken(String idToken) {
+        GoogleSignInService.GoogleUserInfo info = googleSignInService.verifyIdToken(idToken);
+        return signInWithGoogleUserInfo(info);
+    }
+
+    private AuthResponseDto signInWithGoogleUserInfo(GoogleSignInService.GoogleUserInfo info) {
         if (info.email == null || info.email.isEmpty()) {
             throw new RuntimeException("Google did not return an email address");
         }

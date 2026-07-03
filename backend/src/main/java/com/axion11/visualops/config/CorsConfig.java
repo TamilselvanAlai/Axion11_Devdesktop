@@ -27,7 +27,12 @@ public class CorsConfig {
                     "http://localhost:1420",
                     "http://localhost:3000",
                     "http://localhost:3001",
-                    "http://localhost:5173"
+                    "http://localhost:5173",
+                    // Packaged Tauri desktop builds load the frontend from a webview-internal
+                    // origin, not http://localhost:* — origin varies by OS/Tauri version.
+                    "tauri://localhost",
+                    "https://tauri.localhost",
+                    "http://tauri.localhost"
                 ),
                 Arrays.stream(allowedOriginsRaw.split(","))
                         .map(String::trim)

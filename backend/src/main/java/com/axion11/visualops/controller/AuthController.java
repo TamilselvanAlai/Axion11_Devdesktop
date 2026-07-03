@@ -82,4 +82,23 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage() == null ? "auth failed" : e.getMessage()));
         }
     }
+
+    /**
+     * Used by the desktop app: it completes its own OAuth handshake locally (its packaged
+     * webview has no fixed web origin a "Web application" OAuth client's redirect_uri could
+     * target), so it hands us an already-verified Google ID token instead of a code.
+     */
+    @PostMapping("/google/token-signin")
+    public ResponseEntity<?> googleTokenSignin(@RequestBody Map<String, String> body) {
+        String idToken = body.get("idToken");
+        if (idToken == null || idToken.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Missing idToken"));
+        }
+        try {
+            AuthResponseDto response = authService.signInWithGoogleIdToken(idToken);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage() == null ? "auth failed" : e.getMessage()));
+        }
+    }
 }

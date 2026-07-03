@@ -23,6 +23,7 @@ public class GoogleSignInService {
     private static final String AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";
     private static final String TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
     private static final String USERINFO_ENDPOINT = "https://www.googleapis.com/oauth2/v3/userinfo";
+    private static final String TOKENINFO_ENDPOINT = "https://oauth2.googleapis.com/tokeninfo";
     private static final String SCOPES = "openid email profile";
 
     private final RestTemplate restTemplate = new RestTemplate();
@@ -35,6 +36,13 @@ public class GoogleSignInService {
 
     @Value("${google.signin.redirect-uri}")
     private String redirectUri;
+
+    // The desktop app authenticates with its own OAuth client (type "Desktop app", which
+    // supports arbitrary-port loopback redirects) rather than this service's web client, since
+    // a packaged app has no fixed, registrable web origin. It completes the OAuth handshake
+    // itself and hands us a verified ID token instead of a code for us to exchange.
+    @Value("${google.desktop.client-id:}")
+    private String desktopClientId;
 
     public boolean isConfigured() {
         return clientId != null && !clientId.isEmpty() && clientSecret != null && !clientSecret.isEmpty();
@@ -96,6 +104,33 @@ public class GoogleSignInService {
         result.emailVerified = verified instanceof Boolean ? (Boolean) verified : Boolean.parseBoolean(String.valueOf(verified));
         result.name = (String) info.get("name");
         result.picture = (String) info.get("picture");
+        return result;
+    }
+
+    /** Verifies an ID token issued to the desktop app's own OAuth client and returns its claims. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public GoogleUserInfo verifyIdToken(String idToken) {
+        if (desktopClientId == null || desktopClientId.isEmpty()) {
+            throw new IllegalStateException("Desktop Google sign-in not configured on server");
+        }
+
+        ResponseEntity<Map> response = restTemplate.getForEntity(
+                TOKENINFO_ENDPOINT + "?id_token=" + urlEncode(idToken), Map.class);
+        Map<String, Object> claims = response.getBody();
+        if (claims == null) throw new RuntimeException("Empty Google tokeninfo response");
+
+        String audience = (String) claims.get("aud");
+        if (!desktopClientId.equals(audience)) {
+            throw new RuntimeException("ID token was not issued for this application");
+        }
+
+        GoogleUserInfo result = new GoogleUserInfo();
+        result.sub = (String) claims.get("sub");
+        result.email = (String) claims.get("email");
+        Object verified = claims.get("email_verified");
+        result.emailVerified = verified instanceof Boolean ? (Boolean) verified : Boolean.parseBoolean(String.valueOf(verified));
+        result.name = (String) claims.get("name");
+        result.picture = (String) claims.get("picture");
         return result;
     }
 

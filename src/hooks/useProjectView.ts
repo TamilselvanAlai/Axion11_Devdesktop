@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { assetService } from "@/services/asset.service";
+import { localSyncService } from "@/services/localSync.service";
 import { useAssetStore } from "@/store";
 import type { ProjectNode } from "@/types";
 
@@ -31,6 +32,20 @@ export function useProjectView(projectId: string) {
       assetService.listAssets({ projectId }).then(setAssets);
     }
   }, [node, projectId, setAssets, setFolderSummary, setStatus]);
+
+  // A locally-edited file just got auto-uploaded as a new version — refresh the list so
+  // it shows up (updated size/version) without the user having to navigate away and back.
+  useEffect(() => {
+    if (!node || node.children?.length) return;
+    let unlisten: (() => void) | undefined;
+
+    localSyncService.onSyncComplete((payload) => {
+      if (`b-${payload.batchId}` !== node.id) return;
+      assetService.listAssets({ projectId }).then(setAssets);
+    }).then((fn) => { unlisten = fn; });
+
+    return () => unlisten?.();
+  }, [node, projectId, setAssets]);
 
   return { node, isFolder, assets, folderSummary, status };
 }
