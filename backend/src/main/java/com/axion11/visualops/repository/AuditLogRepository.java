@@ -17,6 +17,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findByUserIdOrderByCreatedAtDesc(Long userId);
     List<AuditLog> findAllByOrderByCreatedAtDesc();
 
+    @Query("SELECT a FROM AuditLog a WHERE a.userId = :userId AND a.eventType IN :eventTypes AND a.createdAt >= :since ORDER BY a.createdAt DESC")
+    List<AuditLog> findByUserIdAndEventTypeInAndCreatedAtAfter(@Param("userId") Long userId,
+                                                                @Param("eventTypes") List<String> eventTypes,
+                                                                @Param("since") LocalDateTime since);
+
     @Query("SELECT COUNT(DISTINCT a.assetId) FROM AuditLog a WHERE a.createdAt >= :since")
     long countDistinctAssetIdSince(@Param("since") LocalDateTime since);
 

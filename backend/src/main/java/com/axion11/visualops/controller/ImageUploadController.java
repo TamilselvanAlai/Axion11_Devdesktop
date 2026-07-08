@@ -118,8 +118,10 @@ public class ImageUploadController {
      * Returns a single upload with its tags.
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ImageUploadDto> getUpload(@PathVariable("id") Long id) {
-        return ResponseEntity.ok(imageUploadService.getUpload(id));
+    public ResponseEntity<ImageUploadDto> getUpload(@PathVariable("id") Long id,
+                                                     @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return ResponseEntity.ok(imageUploadService.getUpload(id, username));
     }
 
     /**
@@ -136,8 +138,26 @@ public class ImageUploadController {
      * Downloads the original image file for editing.
      */
     @GetMapping("/download/{id}")
-    public ResponseEntity<byte[]> downloadFile(@PathVariable("id") Long id) {
-        return imageUploadService.downloadFile(id);
+    public ResponseEntity<byte[]> downloadFile(@PathVariable("id") Long id,
+                                                @AuthenticationPrincipal UserDetails userDetails) {
+        String username = userDetails != null ? userDetails.getUsername() : null;
+        return imageUploadService.downloadFile(id, username);
+    }
+
+    /**
+     * POST /api/uploads/{id}/record-download
+     * Logs an ASSET_DOWNLOAD event without transferring the file — used when the client
+     * fetched the file directly from its public storage URL (e.g. the desktop app's local
+     * open-and-sync flow) rather than through {@link #downloadFile}, so the download still
+     * shows up in Transfers.
+     */
+    @PostMapping("/{id}/record-download")
+    public ResponseEntity<Void> recordDownload(@PathVariable("id") Long id,
+                                                @AuthenticationPrincipal UserDetails userDetails) {
+        if (userDetails != null) {
+            imageUploadService.recordDownload(id, userDetails.getUsername());
+        }
+        return ResponseEntity.ok().build();
     }
 
     /**

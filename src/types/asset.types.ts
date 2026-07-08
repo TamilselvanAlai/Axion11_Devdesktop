@@ -59,6 +59,13 @@ export type AssetViewMode = "list" | "grid";
 
 export type AssetSortKey = "name" | "status" | "fileType" | "sizeMb" | "version" | "assignee" | "updatedAt";
 
+export interface AssetFilters {
+  status: AssetStatus | null;
+  fileType: AssetFileType | null;
+  batchId: string | null;
+  assigneeName: string | null;
+}
+
 export type AssetScope = "all" | "recent" | "transfers" | { projectId: string };
 
 // ── Raw shapes returned by the Spring Boot backend ──────────────────────────

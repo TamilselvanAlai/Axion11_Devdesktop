@@ -47,7 +47,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <AssetsToolbar breadcrumbs={breadcrumbs} count={assets.length} countLabel={node.name} projectId={node.id} />
+      <AssetsToolbar breadcrumbs={breadcrumbs} count={assets.length} countLabel={node.name} projectId={node.id} assets={assets} />
       {status === "loading" && assets.length === 0 ? (
         <AssetsSkeleton viewMode={viewMode} />
       ) : viewMode === "grid" ? (

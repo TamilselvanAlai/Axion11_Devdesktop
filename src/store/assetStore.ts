@@ -1,5 +1,7 @@
 import { create } from "zustand";
-import type { Asset, AssetSortKey, AssetViewMode, LoadingState, ProjectNode, ProjectSummary } from "@/types";
+import type { Asset, AssetFilters, AssetSortKey, AssetViewMode, LoadingState, ProjectNode, ProjectSummary } from "@/types";
+
+const EMPTY_FILTERS: AssetFilters = { status: null, fileType: null, batchId: null, assigneeName: null };
 
 interface AssetStoreState {
   projectTree: ProjectNode[];
@@ -9,6 +11,7 @@ interface AssetStoreState {
   viewMode: AssetViewMode;
   sortKey: AssetSortKey;
   sortAsc: boolean;
+  filters: AssetFilters;
   expandedIds: Set<string>;
   selectedAssetId: string | null;
   setProjectTree: (tree: ProjectNode[]) => void;
@@ -18,6 +21,8 @@ interface AssetStoreState {
   setStatus: (status: LoadingState) => void;
   setViewMode: (mode: AssetViewMode) => void;
   toggleSort: (key: AssetSortKey) => void;
+  setFilter: <K extends keyof AssetFilters>(key: K, value: AssetFilters[K]) => void;
+  clearFilters: () => void;
   toggleExpanded: (id: string) => void;
   selectAsset: (id: string | null) => void;
 }
@@ -30,6 +35,7 @@ export const useAssetStore = create<AssetStoreState>((set) => ({
   viewMode: "list",
   sortKey: "updatedAt",
   sortAsc: false,
+  filters: EMPTY_FILTERS,
   expandedIds: new Set(["ss25-campaign", "aw25-campaign"]),
   selectedAssetId: null,
   setProjectTree: (projectTree) => set({ projectTree }),
@@ -43,6 +49,8 @@ export const useAssetStore = create<AssetStoreState>((set) => ({
       sortKey: key,
       sortAsc: state.sortKey === key ? !state.sortAsc : true,
     })),
+  setFilter: (key, value) => set((state) => ({ filters: { ...state.filters, [key]: value } })),
+  clearFilters: () => set({ filters: EMPTY_FILTERS }),
   toggleExpanded: (id) =>
     set((state) => {
       const next = new Set(state.expandedIds);

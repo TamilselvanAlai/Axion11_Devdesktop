@@ -13,7 +13,7 @@ export function DashboardLayout({ children, rightPanel }: DashboardLayoutProps) 
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppHeader />
         <div className="flex flex-1 overflow-hidden">
-          <main className="flex-1 overflow-y-auto p-2">{children}</main>
+          <main className="@container flex-1 overflow-y-auto p-2">{children}</main>
           {rightPanel}
         </div>
       </div>

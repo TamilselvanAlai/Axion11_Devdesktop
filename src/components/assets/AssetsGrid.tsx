@@ -5,6 +5,8 @@ import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
+import { sortAssets } from "@/utils/assetSort";
+import { filterAssets } from "@/utils/assetFilters";
 import type { Asset, AssetFileType } from "@/types";
 
 const TYPE_BADGE_CLASS: Record<AssetFileType, string> = {
@@ -23,9 +25,10 @@ function formatSize(sizeMb: number) {
 }
 
 export function AssetsGrid({ assets }: { assets: Asset[] }) {
-  const { selectedAssetId, selectAsset } = useAssetStore();
+  const { selectedAssetId, selectAsset, sortKey, sortAsc, filters } = useAssetStore();
+  const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
 
-  if (assets.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
         <p className="text-sm font-medium">No assets here yet</p>
@@ -35,8 +38,8 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-      {assets.map((asset) => (
+    <div className="grid grid-cols-2 gap-4 @min-[560px]:grid-cols-3 @min-[820px]:grid-cols-4 @min-[1080px]:grid-cols-5">
+      {rows.map((asset) => (
         <Card
           key={asset.id}
           className={cn(

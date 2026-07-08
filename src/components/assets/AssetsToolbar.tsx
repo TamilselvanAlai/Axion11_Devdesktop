@@ -1,6 +1,6 @@
 import { useRef, useState, Fragment } from "react";
 import { toast } from "sonner";
-import { Filter, SortAsc, LayoutGrid, List, Upload, ChevronRight, ChevronDown, File, FolderUp, Cloud } from "lucide-react";
+import { Filter, SortAsc, SortDesc, LayoutGrid, List, Upload, ChevronRight, ChevronDown, File, FolderUp, Cloud, Check } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -8,21 +8,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { CloudFileBrowserDialog } from "@/components/assets/CloudFileBrowserDialog";
+import { AssetsFilterBar } from "@/components/assets/AssetsFilterBar";
 import { useAssetStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import { createAssetsFromFiles } from "@/utils/uploads";
 import { assetService } from "@/services/asset.service";
 import { WORKSPACE_NAME } from "@/constants/workspace";
+import { hasActiveFilters } from "@/utils/assetFilters";
+import type { Asset, AssetSortKey } from "@/types";
+
+const SORT_OPTIONS: { key: AssetSortKey; label: string }[] = [
+  { key: "name", label: "Name" },
+  { key: "updatedAt", label: "Date modified" },
+  { key: "sizeMb", label: "Size" },
+  { key: "status", label: "Status" },
+  { key: "fileType", label: "Type" },
+  { key: "assignee", label: "Assignee" },
+];
 
 interface AssetsToolbarProps {
   breadcrumbs: string[];
   count: number;
   countLabel: string;
   projectId?: string;
+  assets?: Asset[];
 }
 
-export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: AssetsToolbarProps) {
-  const { viewMode, setViewMode, addAssets, setAssets } = useAssetStore();
+export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, assets = [] }: AssetsToolbarProps) {
+  const { viewMode, setViewMode, addAssets, setAssets, filters, sortKey, sortAsc, toggleSort } = useAssetStore();
   const [filterOpen, setFilterOpen] = useState(false);
   const [cloudBrowserOpen, setCloudBrowserOpen] = useState(false);
   const user = useUser();
@@ -32,13 +45,14 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: Ass
   function handleFilesSelected(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     const assignee = user ? { name: user.name, initials: user.initials } : { name: "Jordan K.", initials: "JK" };
-    const assets = createAssetsFromFiles(fileList, projectId ?? "unassigned", assignee);
-    addAssets(assets);
-    toast.success(`${assets.length} item${assets.length === 1 ? "" : "s"} queued for upload`);
+    const newAssets = createAssetsFromFiles(fileList, projectId ?? "unassigned", assignee);
+    addAssets(newAssets);
+    toast.success(`${newAssets.length} item${newAssets.length === 1 ? "" : "s"} queued for upload`);
   }
 
   return (
-    <div className="flex shrink-0 items-center gap-2 border-b border-border pb-2">
+    <div className="flex shrink-0 flex-col gap-2 border-b border-border pb-2">
+    <div className="flex items-center gap-2">
       <input
         ref={filesInputRef}
         type="file"
@@ -79,19 +93,32 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: Ass
         type="button"
         onClick={() => setFilterOpen((open) => !open)}
         className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors ${
-          filterOpen
+          filterOpen || hasActiveFilters(filters)
             ? "border-primary/30 bg-primary/10 text-primary"
             : "border-transparent text-muted-foreground hover:bg-white/5 hover:text-foreground"
         }`}
       >
         <Filter className="size-3" /> Filter
       </button>
-      <button
-        type="button"
-        className="flex items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
-      >
-        <SortAsc className="size-3" /> Sort <ChevronDown className="size-2.5" />
-      </button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-md border border-transparent px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
+          >
+            {sortAsc ? <SortAsc className="size-3" /> : <SortDesc className="size-3" />} Sort <ChevronDown className="size-2.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          {SORT_OPTIONS.map((opt) => (
+            <DropdownMenuItem key={opt.key} onSelect={() => toggleSort(opt.key)}>
+              {sortKey === opt.key ? <Check className="size-4" /> : <span className="size-4" />}
+              {opt.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div className="flex-1" />
 
@@ -158,6 +185,9 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId }: Ass
           }}
         />
       )}
+    </div>
+
+      {filterOpen && <AssetsFilterBar assets={assets} />}
     </div>
   );
 }

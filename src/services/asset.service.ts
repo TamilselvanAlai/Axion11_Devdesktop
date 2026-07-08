@@ -111,7 +111,15 @@ export const assetService = {
   },
 
   async listAssets(scope: AssetScope): Promise<Asset[]> {
-    if (scope === "all" || scope === "recent" || scope === "transfers") {
+    if (scope === "recent") {
+      const { data } = await apiClient.get<ImageUploadApiDto[]>("/audit/recent-assets?days=7");
+      return data.map(toAsset);
+    }
+    if (scope === "transfers") {
+      const { data } = await apiClient.get<ImageUploadApiDto[]>("/audit/transfers?days=7");
+      return data.map(toAsset);
+    }
+    if (scope === "all") {
       const { data } = await apiClient.get<ImageUploadApiDto[]>("/uploads");
       return data.map(toAsset);
     }
@@ -180,5 +188,11 @@ export const assetService = {
       { text: message }
     );
     return toAssetComment(data, assetId);
+  },
+
+  /** Logs a download without transferring the file — for flows that fetch the file directly
+   *  from its public storage URL (e.g. Open File) instead of through the backend. */
+  async recordDownload(assetId: string): Promise<void> {
+    await apiClient.post(`/uploads/${encodeURIComponent(assetId)}/record-download`).catch(() => undefined);
   },
 };

@@ -18,7 +18,7 @@ export function AssetsScopeView({ scope, breadcrumbs, countLabel }: AssetsScopeV
 
   return (
     <div className="flex flex-col gap-2">
-      <AssetsToolbar breadcrumbs={breadcrumbs} count={assets.length} countLabel={countLabel} />
+      <AssetsToolbar breadcrumbs={breadcrumbs} count={assets.length} countLabel={countLabel} assets={assets} />
       {status === "loading" && assets.length === 0 ? (
         <AssetsSkeleton viewMode={viewMode} />
       ) : viewMode === "grid" ? (

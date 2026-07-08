@@ -109,12 +109,43 @@ public class ImageUploadService {
     }
 
     public ImageUploadDto getUpload(Long id) {
+        return getUpload(id, null);
+    }
+
+    /** @param actingUsername when set, logs an ASSET_VIEW event — used only by the explicit
+     *  single-asset detail fetch (powers "Recent"), not internal/bulk lookups. */
+    public ImageUploadDto getUpload(Long id, String actingUsername) {
         ImageUpload upload = imageUploadRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Upload not found: " + id));
         if (upload.getProject() != null && !projectAccessService.canAccess(upload.getProject())) {
             throw new NoSuchElementException("Upload not found: " + id);
         }
+        if (actingUsername != null) {
+            userRepository.findByEmail(actingUsername).ifPresent(u ->
+                    auditWithUser(upload, "ASSET_VIEW", "Viewed " + upload.getFileName(), u.getId()));
+        }
         return toDto(upload);
+    }
+
+    /** Logs an ASSET_DOWNLOAD event without transferring the file — see controller javadoc. */
+    public void recordDownload(Long uploadId, String actingUsername) {
+        imageUploadRepository.findById(uploadId).ifPresent(upload ->
+                userRepository.findByEmail(actingUsername).ifPresent(u ->
+                        auditWithUser(upload, "ASSET_DOWNLOAD", "Downloaded " + upload.getFileName(), u.getId())));
+    }
+
+    /** Fetches uploads by id, preserving the given order (e.g. most-recent-access-first from
+     *  an audit query) and silently skipping ids that are missing or no longer accessible. */
+    public List<ImageUploadDto> getUploadsByIdsInOrder(List<Long> ids) {
+        List<ImageUploadDto> result = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            imageUploadRepository.findById(id).ifPresent(upload -> {
+                if (upload.getProject() == null || projectAccessService.canAccess(upload.getProject())) {
+                    result.add(toDto(upload));
+                }
+            });
+        }
+        return result;
     }
 
     @org.springframework.transaction.annotation.Transactional
@@ -429,6 +460,11 @@ public class ImageUploadService {
     }
 
     public org.springframework.http.ResponseEntity<byte[]> downloadFile(Long uploadId) {
+        return downloadFile(uploadId, null);
+    }
+
+    /** @param actingUsername when set, logs an ASSET_DOWNLOAD event on success — powers "Transfers". */
+    public org.springframework.http.ResponseEntity<byte[]> downloadFile(Long uploadId, String actingUsername) {
         ImageUpload upload = imageUploadRepository.findById(uploadId)
                 .orElseThrow(() -> new NoSuchElementException("Upload not found: " + uploadId));
         try {
@@ -442,6 +478,10 @@ public class ImageUploadService {
                 objectName = objectName.substring(objectName.indexOf('/', 5) + 1);
             }
             byte[] content = storage.readAllBytes(BlobId.of(bucketName, objectName));
+            if (actingUsername != null) {
+                userRepository.findByEmail(actingUsername).ifPresent(u ->
+                        auditWithUser(upload, "ASSET_DOWNLOAD", "Downloaded " + upload.getFileName(), u.getId()));
+            }
             return org.springframework.http.ResponseEntity.ok()
                     .header("Content-Disposition", "attachment; filename=\"" + upload.getFileName() + "\"")
                     .header("Content-Type", upload.getContentType() != null ? upload.getContentType() : "application/octet-stream")

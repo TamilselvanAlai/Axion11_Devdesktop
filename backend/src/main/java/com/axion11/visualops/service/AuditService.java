@@ -41,6 +41,11 @@ public class AuditService {
         return auditLogRepository.findAllByOrderByCreatedAtDesc();
     }
 
+    /** Most-recent-first, for a single user, restricted to the given event types and time window. */
+    public List<AuditLog> getRecentByUserAndTypes(Long userId, List<String> eventTypes, LocalDateTime since) {
+        return auditLogRepository.findByUserIdAndEventTypeInAndCreatedAtAfter(userId, eventTypes, since);
+    }
+
     public long getImagesProcessedThisMonth() {
         LocalDateTime startOfMonth = LocalDateTime.now().withDayOfMonth(1).withHour(0).withMinute(0).withSecond(0).withNano(0);
         return auditLogRepository.countDistinctAssetIdSince(startOfMonth);

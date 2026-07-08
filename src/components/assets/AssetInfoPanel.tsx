@@ -5,6 +5,7 @@ import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { formatRelativeTime } from "@/utils/formatters";
 import { localSyncService } from "@/services/localSync.service";
+import { assetService } from "@/services/asset.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
 import { useAssetStore } from "@/store";
 import type { AssetDetail } from "@/types";
@@ -46,6 +47,7 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
     }
     if (!isTauri) {
       window.open(detail.downloadUrl, "_blank");
+      assetService.recordDownload(detail.id);
       return;
     }
     if (!detail.batchId) {
@@ -62,6 +64,7 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
         assetId: detail.id,
         batchId: detail.batch,
       });
+      assetService.recordDownload(detail.id);
       toast.success("Opened — saving the file will sync a new version automatically.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open file.");

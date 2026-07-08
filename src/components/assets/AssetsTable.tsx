@@ -20,6 +20,8 @@ import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
+import { sortAssets } from "@/utils/assetSort";
+import { filterAssets } from "@/utils/assetFilters";
 import type { Asset, AssetSortKey } from "@/types";
 
 const COLUMNS: { key: AssetSortKey; label: string }[] = [
@@ -31,22 +33,6 @@ const COLUMNS: { key: AssetSortKey; label: string }[] = [
   { key: "assignee", label: "Assigned" },
   { key: "updatedAt", label: "Date & Time" },
 ];
-
-function sortAssets(assets: Asset[], key: AssetSortKey, asc: boolean): Asset[] {
-  const sorted = [...assets].sort((a, b) => {
-    switch (key) {
-      case "sizeMb":
-        return a.sizeMb - b.sizeMb;
-      case "updatedAt":
-        return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
-      case "assignee":
-        return a.assignee.name.localeCompare(b.assignee.name);
-      default:
-        return String(a[key]).localeCompare(String(b[key]));
-    }
-  });
-  return asc ? sorted : sorted.reverse();
-}
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -63,8 +49,8 @@ function formatSize(mb: number) {
 }
 
 export function AssetsTable({ assets }: { assets: Asset[] }) {
-  const { sortKey, sortAsc, toggleSort, selectedAssetId, selectAsset } = useAssetStore();
-  const rows = sortAssets(assets, sortKey, sortAsc);
+  const { sortKey, sortAsc, toggleSort, selectedAssetId, selectAsset, filters } = useAssetStore();
+  const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
 
   if (rows.length === 0) {
     return (

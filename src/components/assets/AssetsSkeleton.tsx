@@ -3,7 +3,7 @@ import type { AssetViewMode } from "@/types";
 
 export function AssetsGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-4 @min-[560px]:grid-cols-3 @min-[820px]:grid-cols-4 @min-[1080px]:grid-cols-5">
       {Array.from({ length: 10 }, (_, i) => (
         <div key={i} className="overflow-hidden rounded-xl border border-border">
           <Skeleton className="h-40 w-full rounded-none" />
