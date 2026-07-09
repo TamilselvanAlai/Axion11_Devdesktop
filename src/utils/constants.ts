@@ -3,6 +3,7 @@ export const STORAGE_KEYS = {
   rememberedEmail: "axion.auth.rememberedEmail",
   cloudSyncSession: "axion.cloudSync.session",
   notificationsRead: "axion.notifications.read",
+  mountSettings: "axion.mountSettings",
 } as const;
 
 export const VALIDATION = {

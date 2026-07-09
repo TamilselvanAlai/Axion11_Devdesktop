@@ -18,3 +18,16 @@ export function buildAssetRelativePath(tree: ProjectNode[], batchNodeId: string,
   const folders = ancestors ?? [];
   return [...folders, filename].join("/");
 }
+
+/** The ids of every ancestor folder (project → …→ parent batch) leading to targetId, targetId included. */
+export function findAncestorIds(nodes: ProjectNode[], targetId: string, trail: string[] = []): string[] | null {
+  for (const node of nodes) {
+    const nextTrail = [...trail, node.id];
+    if (node.id === targetId) return nextTrail;
+    if (node.children?.length) {
+      const found = findAncestorIds(node.children, targetId, nextTrail);
+      if (found) return found;
+    }
+  }
+  return null;
+}

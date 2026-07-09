@@ -5,6 +5,7 @@ import { assetService } from "@/services/asset.service";
 import { searchAuditService } from "@/services/searchAudit.service";
 import { useAssetStore } from "@/store";
 import { ROUTES } from "@/constants/routes";
+import { findAncestorIds } from "@/utils/assetPath";
 import type { Asset, ProjectNode } from "@/types";
 
 interface FolderMatch {
@@ -26,6 +27,7 @@ export function GlobalSearch() {
   const navigate = useNavigate();
   const projectTree = useAssetStore((s) => s.projectTree);
   const selectAsset = useAssetStore((s) => s.selectAsset);
+  const expandAncestors = useAssetStore((s) => s.expandAncestors);
 
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -86,6 +88,8 @@ export function GlobalSearch() {
     if (!target) return;
     setOpen(false);
     setQuery("");
+    const ancestorIds = findAncestorIds(projectTree, target);
+    if (ancestorIds) expandAncestors(ancestorIds);
     navigate(`${ROUTES.projects}/${target}`);
     selectAsset(asset.id);
   }
@@ -93,7 +97,17 @@ export function GlobalSearch() {
   function goToFolder(folder: FolderMatch) {
     setOpen(false);
     setQuery("");
+    const ancestorIds = findAncestorIds(projectTree, folder.id);
+    if (ancestorIds) expandAncestors(ancestorIds);
     navigate(`${ROUTES.projects}/${folder.id}`);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    // Jump straight to the top match — assets first, then folders.
+    if (assetResults.length > 0) goToAsset(assetResults[0]);
+    else if (folderResults.length > 0) goToFolder(folderResults[0]);
   }
 
   const hasResults = assetResults.length > 0 || folderResults.length > 0;
@@ -112,6 +126,7 @@ export function GlobalSearch() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
           placeholder="Search assets, batches, SKUs…"
           className="w-full min-w-0 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
         />

@@ -103,6 +103,19 @@ export const assetService = {
     return data.filter((n) => n.type !== "asset").map(toProjectNode);
   },
 
+  /** Top-level projects list — lets "Projects" land on a folder picker instead of a flat asset dump. */
+  async getProjectsList(): Promise<ProjectSummary[]> {
+    const { data } = await apiClient.get<ProjectTreeApiNode[]>("/projects/tree");
+    return data
+      .filter((n) => n.type === "project")
+      .map((n) => ({
+        id: n.id,
+        name: n.name,
+        assetCount: n.totalAssets ?? 0,
+        dueDate: n.dueDate ?? "—",
+      }));
+  },
+
   async searchByName(query: string): Promise<Asset[]> {
     const { data } = await apiClient.get<ImageUploadApiDto[]>(
       `/uploads/search-by-name?q=${encodeURIComponent(query)}`
@@ -173,6 +186,15 @@ export const assetService = {
     } catch {
       return null;
     }
+  },
+
+  /** QC actions — approve/reject the current version of this asset. */
+  async approveAsset(assetId: string): Promise<void> {
+    await apiClient.post(`/assets/${encodeURIComponent(assetId)}/approve`);
+  },
+
+  async rejectAsset(assetId: string): Promise<void> {
+    await apiClient.post(`/assets/${encodeURIComponent(assetId)}/reject`);
   },
 
   async getComments(assetId: string): Promise<AssetComment[]> {

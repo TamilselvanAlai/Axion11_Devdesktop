@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
@@ -7,6 +9,7 @@ import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
+import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetFileType } from "@/types";
 
 const TYPE_BADGE_CLASS: Record<AssetFileType, string> = {
@@ -25,8 +28,22 @@ function formatSize(sizeMb: number) {
 }
 
 export function AssetsGrid({ assets }: { assets: Asset[] }) {
-  const { selectedAssetId, selectAsset, sortKey, sortAsc, filters } = useAssetStore();
+  const { selectedAssetId, selectAsset, sortKey, sortAsc, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
+    useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
+  useScrollToSelectedAsset(selectedAssetId, [rows.length]);
+  const lastClickedIndex = useRef<number | null>(null);
+
+  function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
+    e.stopPropagation();
+    if (e.shiftKey && lastClickedIndex.current !== null) {
+      const [start, end] = [lastClickedIndex.current, index].sort((a, b) => a - b);
+      selectRange(rows.slice(start, end + 1).map((r) => r.id));
+    } else {
+      toggleMultiSelect(assetId);
+    }
+    lastClickedIndex.current = index;
+  }
 
   if (rows.length === 0) {
     return (
@@ -39,20 +56,32 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-4 @min-[560px]:grid-cols-3 @min-[820px]:grid-cols-4 @min-[1080px]:grid-cols-5">
-      {rows.map((asset) => (
+      {rows.map((asset, index) => {
+        const checked = multiSelectedIds.has(asset.id);
+        return (
         <Card
           key={asset.id}
+          data-asset-row={asset.id}
           className={cn(
-            "cursor-pointer gap-0 overflow-hidden p-0 ring-1 ring-foreground/10 transition-colors",
-            selectedAssetId === asset.id && "ring-2 ring-primary"
+            "group cursor-pointer gap-0 overflow-hidden p-0 ring-1 ring-foreground/10 transition-colors",
+            (selectedAssetId === asset.id || checked) && "ring-2 ring-primary"
           )}
           onClick={() => selectAsset(asset.id)}
         >
           <div className="relative h-40 w-full shrink-0">
             <AssetThumbnail color={asset.thumbnailColor} className="size-full" rounded={false} />
             <span
+              onClick={(e) => handleCheckboxClick(e, index, asset.id)}
               className={cn(
-                "absolute left-2 top-2 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide backdrop-blur-sm",
+                "absolute left-2 top-2 z-10 flex size-5 items-center justify-center rounded-md bg-black/50 backdrop-blur-sm transition-opacity",
+                checked ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              )}
+            >
+              <Checkbox checked={checked} className="border-white/60" />
+            </span>
+            <span
+              className={cn(
+                "absolute bottom-2 left-2 rounded-md px-1.5 py-0.5 text-xs font-semibold tracking-wide backdrop-blur-sm",
                 TYPE_BADGE_CLASS[asset.fileType]
               )}
             >
@@ -90,7 +119,8 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
             </div>
           </div>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 }

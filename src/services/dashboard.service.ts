@@ -138,6 +138,8 @@ function mapAuditType(eventType: string): ActivityType {
     case "READY_FOR_PRODUCTION": return "approved";
     case "TAG_EDIT":
     case "TAG_DELETE": return "commented";
+    case "ASSET_VIEW": return "viewed";
+    case "ASSET_DOWNLOAD": return "downloaded";
     default: return "created";
   }
 }
@@ -145,9 +147,9 @@ function mapAuditType(eventType: string): ActivityType {
 function mapActivity(logs: ApiAuditLog[]): ActivityItem[] {
   return logs.slice(0, 15).map((log) => ({
     id: String(log.id),
-    actor: log.details?.split(" ").slice(0, 2).join(" ") || `User #${log.userId ?? "?"}`,
+    actor: log.actorName || `User #${log.userId ?? "?"}`,
     type: mapAuditType(log.eventType),
-    version: log.assetId ? `asset-${log.assetId}` : log.eventType.toLowerCase().replace(/_/g, "-"),
+    version: log.assetVersion ? `v${log.assetVersion}` : "—",
     timestamp: log.createdAt,
   }));
 }

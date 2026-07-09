@@ -16,7 +16,7 @@ function findNode(nodes: ProjectNode[], id: string): ProjectNode | null {
 }
 
 export function useProjectView(projectId: string) {
-  const { projectTree, assets, folderSummary, status, setAssets, setFolderSummary, setStatus } =
+  const { projectTree, assets, folderSummary, status, setAssets, setFolderSummary, resetForNavigation } =
     useAssetStore();
 
   const node = useMemo(() => findNode(projectTree, projectId), [projectTree, projectId]);
@@ -24,14 +24,16 @@ export function useProjectView(projectId: string) {
 
   useEffect(() => {
     if (!node) return;
-    setStatus("loading");
+    // Clear the previous node's list synchronously so the skeleton shows immediately —
+    // otherwise stale content sits frozen on screen for the whole fetch, then jumps.
+    resetForNavigation();
 
     if (node.children?.length) {
       assetService.getFolderSummary(projectId).then(setFolderSummary);
     } else {
       assetService.listAssets({ projectId }).then(setAssets);
     }
-  }, [node, projectId, setAssets, setFolderSummary, setStatus]);
+  }, [node, projectId, setAssets, setFolderSummary, resetForNavigation]);
 
   // A locally-edited file just got auto-uploaded as a new version — refresh the list so
   // it shows up (updated size/version) without the user having to navigate away and back.

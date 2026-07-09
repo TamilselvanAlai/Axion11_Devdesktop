@@ -1,4 +1,4 @@
-import { Bell, CheckCircle, Upload, MessageSquare, Lock, GitBranch } from "lucide-react";
+import { Bell, CheckCircle, Upload, Download, MessageSquare, Lock, GitBranch, Eye } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +12,11 @@ import type { ActivityItem, ActivityType } from "@/types";
 const NOTIFICATION_META: Record<ActivityType, { title: (item: ActivityItem) => string; icon: typeof CheckCircle; className: string }> = {
   approved: { title: (i) => `${i.actor} approved`, icon: CheckCircle, className: "text-success" },
   uploaded: { title: (i) => `${i.actor} uploaded`, icon: Upload, className: "text-info" },
-  commented: { title: (i) => `${i.actor} commented`, icon: MessageSquare, className: "text-foreground/70" },
+  commented: { title: (i) => `${i.actor} commented`, icon: MessageSquare, className: "text-slate-300" },
   locked: { title: (i) => `${i.actor} locked`, icon: Lock, className: "text-warning" },
-  created: { title: (i) => `${i.actor} created`, icon: GitBranch, className: "text-info" },
+  created: { title: (i) => `${i.actor} created`, icon: GitBranch, className: "text-violet-400" },
+  viewed: { title: (i) => `${i.actor} viewed`, icon: Eye, className: "text-cyan-400" },
+  downloaded: { title: (i) => `${i.actor} downloaded`, icon: Download, className: "text-pink-400" },
 };
 
 export function NotificationsMenu() {

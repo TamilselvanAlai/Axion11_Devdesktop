@@ -15,6 +15,7 @@ interface AuthApiResponse {
 function mapRole(role: string): UserRole {
   const r = (role ?? "").toUpperCase();
   if (r.includes("SUPER_ADMIN") || r.includes("ADMIN")) return "admin";
+  if (r.includes("REVIEWER")) return "qc";
   if (
     r.includes("CREATIVE_LEAD") ||
     r.includes("PROJECT_MANAGER") ||

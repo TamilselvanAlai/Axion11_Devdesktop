@@ -3,6 +3,7 @@ import type { UserRole } from "@/types";
 const ROLE_RANK: Record<UserRole, number> = {
   viewer: 0,
   editor: 1,
+  qc: 1,
   admin: 2,
 };
 

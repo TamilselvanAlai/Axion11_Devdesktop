@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Eye, Loader2, RefreshCw } from "lucide-react";
+import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { formatRelativeTime } from "@/utils/formatters";
 import { localSyncService } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
-import { useAssetStore } from "@/store";
+import { useAssetStore, useMountSettingsStore } from "@/store";
+import { useUser } from "@/hooks/useUser";
 import type { AssetDetail } from "@/types";
 
 function isUrl(value: string): boolean {
@@ -32,11 +33,15 @@ function formatDateTime(iso: string) {
   });
 }
 
-export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
+export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail; onStatusChange?: () => void }) {
   const status = STATUS_META[detail.status];
   const projectTree = useAssetStore((s) => s.projectTree);
+  const mountPoint = useMountSettingsStore((s) => s.mountPoint);
+  const user = useUser();
+  const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
 
@@ -63,6 +68,7 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
         relativePath,
         assetId: detail.id,
         batchId: detail.batch,
+        mountRoot: mountPoint,
       });
       assetService.recordDownload(detail.id);
       toast.success("Opened — saving the file will sync a new version automatically.");
@@ -79,6 +85,20 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
       return;
     }
     setPreviewOpen(true);
+  }
+
+  async function handleDecision(decision: "approve" | "reject") {
+    setDeciding(decision);
+    try {
+      if (decision === "approve") await assetService.approveAsset(detail.id);
+      else await assetService.rejectAsset(detail.id);
+      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
+      onStatusChange?.();
+    } catch {
+      toast.error(`Failed to ${decision} asset.`);
+    } finally {
+      setDeciding(null);
+    }
   }
 
   const rows = [
@@ -125,28 +145,49 @@ export function AssetInfoPanel({ detail }: { detail: AssetDetail }) {
               </div>
             ))}
           </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={handleOpenFile}
+              disabled={opening || !detail.downloadUrl}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {opening ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
+              {opening ? "Opening…" : "Open File"}
+            </button>
+            <button
+              onClick={handlePreview}
+              disabled={!previewableUrl}
+              className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Eye className="size-3" /> Preview
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border p-4">
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={handleOpenFile}
-            disabled={opening || !detail.downloadUrl}
-            className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {opening ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-            {opening ? "Opening…" : "Open File"}
-          </button>
-          <button
-            onClick={handlePreview}
-            disabled={!previewableUrl}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground/70 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Eye className="size-3" /> Preview
-          </button>
+      {isQc && (
+        <div className="shrink-0 border-t border-border p-4">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => handleDecision("approve")}
+              disabled={deciding !== null || detail.status === "approved"}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white shadow-md shadow-success/20 transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+              Approve
+            </button>
+            <button
+              onClick={() => handleDecision("reject")}
+              disabled={deciding !== null || detail.status === "rejected"}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white shadow-md shadow-danger/20 transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deciding === "reject" ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
+              Reject
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {previewOpen && previewableUrl && (
         <AssetPreviewModal imageUrl={previewableUrl} filename={detail.filename} onClose={() => setPreviewOpen(false)} />

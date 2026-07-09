@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 
 /// Paths currently being watched, so re-opening the same asset doesn't spawn duplicate watchers.
 fn watched_paths() -> &'static Mutex<HashSet<PathBuf>> {
@@ -42,8 +42,9 @@ pub async fn open_and_sync_asset(
     batch_id: String,
     upload_url: String,
     auth_token: String,
+    mount_root: Option<String>,
 ) -> Result<String, String> {
-    let local_path = download_asset(&app, &download_url, &relative_path).await?;
+    let local_path = download_asset(&app, &download_url, &relative_path, mount_root.as_deref()).await?;
 
     tauri_plugin_opener::open_path(local_path.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| format!("Failed to open file: {e}"))?;
@@ -53,12 +54,22 @@ pub async fn open_and_sync_asset(
     Ok(local_path.to_string_lossy().to_string())
 }
 
-async fn download_asset(app: &AppHandle, url: &str, relative_path: &str) -> Result<PathBuf, String> {
-    let base_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Could not resolve app data directory: {e}"))?
-        .join("LocalWorkingFiles");
+async fn download_asset(
+    _app: &AppHandle,
+    url: &str,
+    relative_path: &str,
+    mount_root: Option<&str>,
+) -> Result<PathBuf, String> {
+    // Defaults to the system drive (e.g. C:\) when the user hasn't picked one in Mount Settings —
+    // always lands under <drive>\AxionDam\..., never the hidden AppData folder.
+    let root = match mount_root {
+        Some(root) if !root.trim().is_empty() => root.trim().to_string(),
+        _ => {
+            let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string());
+            format!("{system_drive}\\")
+        }
+    };
+    let base_dir = PathBuf::from(root).join("AxionDam");
 
     let local_path = sanitize_join(&base_dir, relative_path);
 

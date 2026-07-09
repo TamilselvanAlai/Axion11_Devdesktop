@@ -16,3 +16,5 @@ Running it:
 npm run dev:all        # starts server (:4000) + Vite (:3000) together
 # or separately: npm run server:dev   /   npm run dev
 npm run server:seed    # re-seed if you ever wipe the DB
+
+npm run tauri dev ===> desktop app

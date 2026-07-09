@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Cpu, Settings, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocalDrives } from "@/hooks/useLocalDrives";
+import { useMountSettingsStore } from "@/store";
 import type { BackgroundServicesSummary, BackgroundService, MountDriveOption, ServiceHealthColor } from "@/types";
 
 interface DriveOption {
@@ -54,6 +56,8 @@ function ServiceMetrics({ service }: { service: BackgroundService }) {
 
 function MountServiceCard({ service, driveOptions }: { service: BackgroundService; driveOptions: MountDriveOption[] }) {
   const { drives: localDrives, isTauri } = useLocalDrives();
+  const { mountPoint: savedMountPoint, cacheLimitGb: savedCacheLimitGb, setMountPoint, setCacheLimitGb: saveCacheLimitGb } =
+    useMountSettingsStore();
 
   const options: DriveOption[] = isTauri && localDrives
     ? localDrives.map((d) => ({
@@ -65,9 +69,14 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
     : driveOptions.map((d) => ({ id: d.id, label: d.label, totalGb: d.capacityGb, availableGb: d.capacityGb }));
 
   const [flipped, setFlipped] = useState(false);
-  const [driveId, setDriveId] = useState(options[0]?.id ?? "");
+  const effectiveSavedId = savedMountPoint ?? options[0]?.id ?? "";
+  // Pending edits live here until Save is pressed — the front face keeps showing the
+  // last-saved drive/limit the whole time, so it never claims a path is active before it is.
+  const [driveId, setDriveId] = useState(effectiveSavedId);
   const drive = options.find((d) => d.id === driveId) ?? options[0];
-  const [cacheLimitGb, setCacheLimitGb] = useState(50);
+  const savedDrive = options.find((d) => d.id === effectiveSavedId) ?? options[0];
+  const [cacheLimitGb, setCacheLimitGb] = useState(savedCacheLimitGb);
+  const isDirty = driveId !== effectiveSavedId || cacheLimitGb !== savedCacheLimitGb;
 
   useEffect(() => {
     if (options.length > 0 && !options.some((d) => d.id === driveId)) {
@@ -76,11 +85,27 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.map((d) => d.id).join(",")]);
 
+  function handleSave() {
+    if (isTauri && drive) setMountPoint(drive.id);
+    saveCacheLimitGb(cacheLimitGb);
+    setFlipped(false);
+    if (isTauri && drive) {
+      toast.success(`Local sync path updated — new files now save under ${drive.label}\\AxionDam.`);
+    }
+  }
+
+  function handleFlipBack() {
+    // Discard any unsaved edits so the settings panel reopens showing what's actually active.
+    setDriveId(effectiveSavedId);
+    setCacheLimitGb(savedCacheLimitGb);
+    setFlipped(false);
+  }
+
   const displayedService: BackgroundService =
-    isTauri && drive
+    isTauri && savedDrive
       ? {
           ...service,
-          metrics: service.metrics.map((m) => (m.label === "Drive" ? { ...m, value: drive.label } : m)),
+          metrics: service.metrics.map((m) => (m.label === "Drive" ? { ...m, value: savedDrive.label } : m)),
         }
       : service;
 
@@ -122,7 +147,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
             <button
               type="button"
               aria-label="Back"
-              onClick={() => setFlipped(false)}
+              onClick={handleFlipBack}
               className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
             >
               <X className="size-3" />
@@ -172,10 +197,15 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
 
           <button
             type="button"
-            onClick={() => setFlipped(false)}
-            className="mt-1 w-full rounded-lg bg-primary/15 py-1.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/25"
+            onClick={handleSave}
+            disabled={!isDirty}
+            className={`mt-1 w-full rounded-lg py-1.5 text-[11px] font-medium transition-colors ${
+              isDirty
+                ? "bg-primary/15 text-primary hover:bg-primary/25"
+                : "cursor-not-allowed bg-white/5 text-muted-foreground"
+            }`}
           >
-            Save
+            {isDirty ? "Save" : "Saved"}
           </button>
         </Card>
       </div>

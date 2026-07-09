@@ -57,7 +57,9 @@ export type ActivityType =
   | "uploaded"
   | "commented"
   | "locked"
-  | "created";
+  | "created"
+  | "viewed"
+  | "downloaded";
 
 export interface ActivityItem {
   id: string;
@@ -136,8 +138,10 @@ export interface ApiAuditLog {
   batchId: number | null;
   assetId: number | null;
   userId: number | null;
+  actorName: string | null;
   details: string | null;
   createdAt: string;
+  assetVersion: number | null;
 }
 
 export interface ApiTask {

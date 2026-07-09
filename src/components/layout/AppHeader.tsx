@@ -15,7 +15,7 @@ import { GlobalSearch } from "@/components/shared/GlobalSearch";
 import { useUser } from "@/hooks/useUser";
 import { useAuth } from "@/hooks/useAuth";
 
-export function AppHeader() {
+export function AppHeader({ hideSearch }: { hideSearch?: boolean }) {
   const user = useUser();
   const { logout } = useAuth();
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -23,7 +23,7 @@ export function AppHeader() {
   return (
     <header className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
       <div className="flex min-w-0 flex-1 justify-center">
-        <GlobalSearch />
+        {!hideSearch && <GlobalSearch />}
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 text-xs">

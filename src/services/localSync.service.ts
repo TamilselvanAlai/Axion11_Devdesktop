@@ -20,8 +20,16 @@ export const localSyncService = {
   isTauri,
 
   /** Downloads the asset locally (mirroring the project tree), opens it, and watches it —
-   *  any save is automatically re-uploaded as a new version of the same asset. */
-  async openAndSync(params: { downloadUrl: string; relativePath: string; assetId: string; batchId: string }): Promise<string> {
+   *  any save is automatically re-uploaded as a new version of the same asset.
+   *  `mountRoot`, when set (from Mount Settings), stores it under `<mountRoot>\AxionDam\...`
+   *  instead of the app's default data directory. */
+  async openAndSync(params: {
+    downloadUrl: string;
+    relativePath: string;
+    assetId: string;
+    batchId: string;
+    mountRoot?: string | null;
+  }): Promise<string> {
     if (!isTauri()) {
       throw new Error("Opening and syncing files locally requires the desktop app.");
     }
@@ -34,6 +42,7 @@ export const localSyncService = {
       batchId: params.batchId,
       uploadUrl: `${env.apiBaseUrl}/batches/upload/{batchId}`,
       authToken: token,
+      mountRoot: params.mountRoot ?? null,
     });
   },
 

@@ -1,8 +1,11 @@
 package com.axion11.visualops.controller;
 
+import com.axion11.visualops.controller.dto.AuditLogDto;
 import com.axion11.visualops.controller.dto.ImageUploadDto;
 import com.axion11.visualops.models.AuditLog;
+import com.axion11.visualops.models.ImageUpload;
 import com.axion11.visualops.models.User;
+import com.axion11.visualops.repository.ImageUploadRepository;
 import com.axion11.visualops.repository.UserRepository;
 import com.axion11.visualops.service.AuditService;
 import com.axion11.visualops.service.ImageUploadService;
@@ -16,8 +19,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/audit")
@@ -27,20 +33,45 @@ public class AuditController {
     private final AuditService auditService;
     private final ImageUploadService imageUploadService;
     private final UserRepository userRepository;
+    private final ImageUploadRepository imageUploadRepository;
 
     @GetMapping
-    public ResponseEntity<List<AuditLog>> getAll() {
-        return ResponseEntity.ok(auditService.getAll());
+    public ResponseEntity<List<AuditLogDto>> getAll() {
+        return ResponseEntity.ok(withActorAndVersion(auditService.getAll()));
     }
 
     @GetMapping("/asset/{assetId}")
-    public ResponseEntity<List<AuditLog>> getByAsset(@PathVariable("assetId") Long assetId) {
-        return ResponseEntity.ok(auditService.getByAsset(assetId));
+    public ResponseEntity<List<AuditLogDto>> getByAsset(@PathVariable("assetId") Long assetId) {
+        return ResponseEntity.ok(withActorAndVersion(auditService.getByAsset(assetId)));
     }
 
     @GetMapping("/project/{projectId}")
-    public ResponseEntity<List<AuditLog>> getByProject(@PathVariable("projectId") Long projectId) {
-        return ResponseEntity.ok(auditService.getByProject(projectId));
+    public ResponseEntity<List<AuditLogDto>> getByProject(@PathVariable("projectId") Long projectId) {
+        return ResponseEntity.ok(withActorAndVersion(auditService.getByProject(projectId)));
+    }
+
+    /** Batch-resolves each log's userId → display name and assetId → current version number. */
+    private List<AuditLogDto> withActorAndVersion(List<AuditLog> logs) {
+        Set<Long> userIds = logs.stream().map(AuditLog::getUserId).filter(Objects::nonNull).collect(Collectors.toSet());
+        Set<Long> assetIds = logs.stream().map(AuditLog::getAssetId).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<Long, String> namesByUserId = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getName));
+        Map<Long, Integer> versionsByAssetId = imageUploadRepository.findAllById(assetIds).stream()
+                .collect(Collectors.toMap(ImageUpload::getId, u -> u.getVersionNumber() != null ? u.getVersionNumber() : 1));
+
+        return logs.stream().map(log -> new AuditLogDto(
+                log.getId(),
+                log.getEventType(),
+                log.getProjectId(),
+                log.getBatchId(),
+                log.getAssetId(),
+                log.getUserId(),
+                log.getUserId() != null ? namesByUserId.get(log.getUserId()) : null,
+                log.getDetails(),
+                log.getCreatedAt(),
+                log.getAssetId() != null ? versionsByAssetId.get(log.getAssetId()) : null
+        )).collect(Collectors.toList());
     }
 
     /**

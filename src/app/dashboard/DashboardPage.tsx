@@ -12,14 +12,14 @@ export default function DashboardPage() {
 
   if (status === "error") {
     return (
-      <DashboardLayout>
+      <DashboardLayout hideSearch>
         <ErrorState message={error ?? "Something went wrong."} onRetry={() => window.location.reload()} />
       </DashboardLayout>
     );
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout hideSearch>
       <div className="flex flex-col gap-3">
         <WelcomeHeader pendingReviewCount={snapshot?.pendingReviewCount} />
 

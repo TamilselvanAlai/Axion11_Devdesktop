@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { ArrowDown, ArrowUp, Eye, Download, MoreHorizontal } from "lucide-react";
 import {
   Table,
@@ -8,6 +9,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
+import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetSortKey } from "@/types";
 
 const COLUMNS: { key: AssetSortKey; label: string }[] = [
@@ -49,8 +52,22 @@ function formatSize(mb: number) {
 }
 
 export function AssetsTable({ assets }: { assets: Asset[] }) {
-  const { sortKey, sortAsc, toggleSort, selectedAssetId, selectAsset, filters } = useAssetStore();
+  const { sortKey, sortAsc, toggleSort, selectedAssetId, selectAsset, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
+    useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
+  useScrollToSelectedAsset(selectedAssetId, [rows.length]);
+  const lastClickedIndex = useRef<number | null>(null);
+
+  function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
+    e.stopPropagation();
+    if (e.shiftKey && lastClickedIndex.current !== null) {
+      const [start, end] = [lastClickedIndex.current, index].sort((a, b) => a - b);
+      selectRange(rows.slice(start, end + 1).map((r) => r.id));
+    } else {
+      toggleMultiSelect(assetId);
+    }
+    lastClickedIndex.current = index;
+  }
 
   if (rows.length === 0) {
     return (
@@ -65,6 +82,19 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-8">
+            <Checkbox
+              checked={rows.length > 0 && rows.every((r) => multiSelectedIds.has(r.id))}
+              onCheckedChange={(checked) => {
+                rows.forEach((r) => {
+                  const isChecked = multiSelectedIds.has(r.id);
+                  if (checked && !isChecked) toggleMultiSelect(r.id);
+                  if (!checked && isChecked) toggleMultiSelect(r.id);
+                });
+              }}
+              aria-label="Select all"
+            />
+          </TableHead>
           {COLUMNS.map((col) => (
             <TableHead key={col.key}>
               <button
@@ -82,12 +112,16 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {rows.map((asset) => (
+        {rows.map((asset, index) => (
           <TableRow
             key={asset.id}
-            className={cn("group cursor-pointer", selectedAssetId === asset.id && "bg-muted")}
+            data-asset-row={asset.id}
+            className={cn("group cursor-pointer", (selectedAssetId === asset.id || multiSelectedIds.has(asset.id)) && "bg-muted")}
             onClick={() => selectAsset(asset.id)}
           >
+            <TableCell onClick={(e) => handleCheckboxClick(e, index, asset.id)}>
+              <Checkbox checked={multiSelectedIds.has(asset.id)} aria-label={`Select ${asset.name}`} />
+            </TableCell>
             <TableCell>
               <div className="flex items-center gap-3">
                 <AssetThumbnail color={asset.thumbnailColor} />

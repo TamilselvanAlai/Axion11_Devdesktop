@@ -5,13 +5,13 @@ import { useAssetStore } from "@/store";
 import type { AssetScope } from "@/types";
 
 export function useAssets(scope: AssetScope) {
-  const { assets, status, setAssets, setStatus } = useAssetStore();
+  const { assets, status, setAssets, resetForNavigation } = useAssetStore();
   const scopeKey = typeof scope === "string" ? scope : scope.projectId;
 
   useEffect(() => {
-    setStatus("loading");
+    resetForNavigation();
     assetService.listAssets(scope).then(setAssets);
-  }, [scopeKey, setAssets, setStatus]);
+  }, [scopeKey, setAssets, resetForNavigation]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
