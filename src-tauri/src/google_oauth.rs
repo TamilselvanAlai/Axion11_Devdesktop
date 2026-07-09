@@ -88,11 +88,18 @@ struct DriveListResponse {
 }
 
 fn oauth_credentials() -> Result<(String, String), String> {
+    // Runtime .env (dev convenience, overridable without rebuilding) takes priority; falls back
+    // to the value baked into the binary at compile time by build.rs, which is what packaged
+    // builds rely on since there's no .env file next to the installed exe.
     let _ = dotenvy::dotenv();
     let client_id = std::env::var("GOOGLE_OAUTH_CLIENT_ID")
-        .map_err(|_| "GOOGLE_OAUTH_CLIENT_ID is not set. Add it to src-tauri/.env".to_string())?;
+        .ok()
+        .or_else(|| option_env!("GOOGLE_OAUTH_CLIENT_ID").map(|s| s.to_string()))
+        .ok_or_else(|| "GOOGLE_OAUTH_CLIENT_ID is not set. Add it to src-tauri/.env".to_string())?;
     let client_secret = std::env::var("GOOGLE_OAUTH_CLIENT_SECRET")
-        .map_err(|_| "GOOGLE_OAUTH_CLIENT_SECRET is not set. Add it to src-tauri/.env".to_string())?;
+        .ok()
+        .or_else(|| option_env!("GOOGLE_OAUTH_CLIENT_SECRET").map(|s| s.to_string()))
+        .ok_or_else(|| "GOOGLE_OAUTH_CLIENT_SECRET is not set. Add it to src-tauri/.env".to_string())?;
     Ok((client_id, client_secret))
 }
 
