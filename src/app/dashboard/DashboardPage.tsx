@@ -20,12 +20,16 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout hideSearch>
-      <div className="flex flex-col gap-3">
-        <WelcomeHeader pendingReviewCount={snapshot?.pendingReviewCount} />
+      <div className="flex h-full min-h-0 flex-col gap-3">
+        <div className="shrink-0">
+          <WelcomeHeader pendingReviewCount={snapshot?.pendingReviewCount} />
+        </div>
 
-        <StatisticsSection stats={snapshot?.stats ?? null} />
+        <div className="shrink-0">
+          <StatisticsSection stats={snapshot?.stats ?? null} />
+        </div>
 
-        <div className="grid h-68 grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="min-h-40 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="min-h-0 lg:col-span-2">
             <WorkListSection items={snapshot?.workItems ?? null} />
           </div>
@@ -34,7 +38,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <BackgroundServicesSection summary={snapshot?.backgroundServices ?? null} />
+        <div className="shrink-0">
+          <BackgroundServicesSection summary={snapshot?.backgroundServices ?? null} />
+        </div>
       </div>
     </DashboardLayout>
   );

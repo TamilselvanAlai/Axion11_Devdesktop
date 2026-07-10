@@ -13,11 +13,12 @@
     "windows": [
       {
         "title": "axion11_desktop",
-        "width": 1600,
-        "height": 960,
+        "width": 2511,
+        "height": 1500,
         "minWidth": 1024,
         "minHeight": 640,
-        "center": true
+        "center": true,
+        "visible": false
       }
     ],
     "security": {
