@@ -29,7 +29,7 @@ export default function DashboardPage() {
           <StatisticsSection stats={snapshot?.stats ?? null} />
         </div>
 
-        <div className="min-h-40 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-3">
+        <div className="min-h-50 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-3">
           <div className="min-h-0 lg:col-span-2">
             <WorkListSection items={snapshot?.workItems ?? null} />
           </div>

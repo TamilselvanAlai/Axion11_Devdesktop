@@ -21,32 +21,34 @@ export function CloudStorageSection({ storage }: { storage: StorageSummary | nul
   }
 
   return (
-    <Card className="flex h-full flex-col gap-3 p-3.5">
-      <div className="flex items-center justify-between">
+    <Card className="flex h-full flex-col gap-3 overflow-hidden p-3.5">
+      <div className="shrink-0 flex items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <HardDrive className="size-4 text-primary" /> Cloud Storage
         </h2>
         <span className="text-xs text-muted-foreground">{storage.quotaTb} TB quota</span>
       </div>
 
-      <div className="flex items-center justify-center py-1">
-        <StorageDonutChart
-          breakdown={storage.breakdown}
-          totalGb={storage.quotaTb * 1000}
-          usedPercent={storage.usedPercent}
-        />
-      </div>
+      <div className="flex min-h-0 flex-1 items-center gap-4 overflow-y-auto">
+        <div className="flex shrink-0 items-center justify-center">
+          <StorageDonutChart
+            breakdown={storage.breakdown}
+            totalGb={storage.quotaTb * 1000}
+            usedPercent={storage.usedPercent}
+          />
+        </div>
 
-      <div className="flex flex-col gap-1.5">
-        {storage.breakdown.map((item) => (
-          <div key={item.id} className="flex items-center justify-between text-xs">
-            <span className="flex items-center gap-2 text-muted-foreground">
-              <span className="size-2 rounded-sm" style={{ backgroundColor: DOT_HEX[item.color] }} />
-              {item.label}
-            </span>
-            <span className="font-mono font-medium">{formatStorage(item.valueGb)}</span>
-          </div>
-        ))}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {storage.breakdown.map((item) => (
+            <div key={item.id} className="flex items-center justify-between text-xs">
+              <span className="flex items-center gap-2 text-muted-foreground">
+                <span className="size-2 shrink-0 rounded-sm" style={{ backgroundColor: DOT_HEX[item.color] }} />
+                {item.label}
+              </span>
+              <span className="font-mono font-medium">{formatStorage(item.valueGb)}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </Card>
   );

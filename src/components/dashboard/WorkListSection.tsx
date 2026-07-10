@@ -55,7 +55,7 @@ function formatDate(iso: string) {
 
 export function WorkListSection({ items }: { items: WorkItem[] | null }) {
   return (
-    <Card className="flex h-full flex-col gap-3 p-3.5">
+    <Card className="flex h-full flex-col gap-3 overflow-hidden p-3.5">
       <div className="flex shrink-0 items-center justify-between">
         <h2 className="flex items-center gap-2 text-sm font-semibold">
           <Package className="size-4 text-primary" /> Work List

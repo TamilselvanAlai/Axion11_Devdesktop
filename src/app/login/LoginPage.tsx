@@ -40,31 +40,31 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-y-auto px-4 py-12">
+    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-y-auto px-4 py-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--color-primary),transparent)]/18" />
 
       <div className="relative flex w-full max-w-md flex-col items-center">
-        <div className="mb-6 flex flex-col items-center gap-3 text-center">
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
-            <Zap className="size-7" />
+        <div className="mb-3 flex flex-col items-center gap-1.5 text-center">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/30">
+            <Zap className="size-5" />
           </span>
           <div>
-            <h1 className="text-2xl font-semibold">
+            <h1 className="text-lg font-semibold">
               Axion <span className="font-semibold">VisualOps</span>
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Intelligent Asset Management System
             </p>
           </div>
         </div>
 
-        <div className="w-full rounded-2xl border border-border bg-card p-8 shadow-xl">
-          <h2 className="text-lg font-semibold">Sign in</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+        <div className="w-full rounded-2xl border border-border bg-card p-5 shadow-xl">
+          <h2 className="text-base font-semibold">Sign in</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
             Enter your credentials to access the workspace
           </p>
 
-          <div className="mt-6">
+          <div className="mt-4">
             <LoginForm
               onSuccess={() => {
                 toast.success("Signed in successfully");
@@ -78,7 +78,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           © 2026 Axion VisualOps · Enterprise Edition
         </p>
       </div>

@@ -47,7 +47,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
     <form
       onSubmit={handleSubmit(onSubmit)}
       noValidate
-      className="flex w-full flex-col gap-5"
+      className="flex w-full flex-col gap-3.5"
       aria-describedby={error ? "login-form-error" : undefined}
     >
       {error && (
@@ -74,7 +74,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
           autoComplete="username"
           placeholder="Enter username"
           aria-invalid={Boolean(errors.email)}
-          className="h-10"
+          className="h-9"
           onFocus={clearError}
           {...register("email")}
         />
@@ -97,7 +97,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
           autoComplete="current-password"
           placeholder="Enter password"
           aria-invalid={Boolean(errors.password)}
-          className="h-10"
+          className="h-9"
           onFocus={clearError}
           {...register("password")}
         />
@@ -128,7 +128,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
         </button>
       </div>
 
-      <Button type="submit" size="lg" disabled={isSubmitting} className="h-10 w-full">
+      <Button type="submit" size="lg" disabled={isSubmitting} className="h-9 w-full">
         {isSubmitting ? (
           <>
             <Loader2 className="size-4 animate-spin" />
@@ -139,7 +139,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
         )}
       </Button>
 
-      <div className="relative flex items-center py-1">
+      <div className="relative flex items-center py-0.5">
         <div className="h-px flex-1 bg-border" />
         <span className="px-3 text-xs text-muted-foreground">or continue with</span>
         <div className="h-px flex-1 bg-border" />
@@ -149,7 +149,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
         <button
           type="button"
           onClick={() => onSso?.("Google")}
-          className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <GoogleIcon className="size-4" />
           Google
@@ -157,7 +157,7 @@ export function LoginForm({ onSuccess, onForgotPassword, onSso }: LoginFormProps
         <button
           type="button"
           onClick={() => onSso?.("Microsoft Live")}
-          className="flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+          className="flex h-9 items-center justify-center gap-2 rounded-lg border border-border bg-secondary text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         >
           <MicrosoftIcon className="size-4" />
           Microsoft Live
