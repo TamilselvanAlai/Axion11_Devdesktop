@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "axion11_desktop",
-        "width": 2511,
-        "height": 1500,
+        "width": 1280,
+        "height": 800,
         "minWidth": 1024,
         "minHeight": 640,
         "center": true,

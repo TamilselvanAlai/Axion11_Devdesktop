@@ -40,7 +40,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-hidden px-4 py-12">
+    <div className="relative flex min-h-svh flex-col items-center justify-center overflow-y-auto px-4 py-12">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_0%,var(--color-primary),transparent)]/18" />
 
       <div className="relative flex w-full max-w-md flex-col items-center">
