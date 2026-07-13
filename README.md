@@ -18,3 +18,7 @@ npm run dev:all        # starts server (:4000) + Vite (:3000) together
 npm run server:seed    # re-seed if you ever wipe the DB
 
 npm run tauri dev ===> desktop app
+
+
+gcloud run deploy axion11-backend --source ./backend --region=us-central1 --project=axion11-prod
+backend deploy script command
