@@ -54,6 +54,35 @@ pub async fn open_and_sync_asset(
     Ok(local_path.to_string_lossy().to_string())
 }
 
+/// Ensures a drive/folder root is treated as an absolute path, e.g. `"E:"` -> `"E:\\"`.
+/// On Windows, `"E:"` without the trailing separator is a *drive-relative* path (relative to
+/// whatever the current directory happens to be on that drive), not the drive's root — joining
+/// onto a bare drive letter silently landed files in the wrong place (often back on `C:`),
+/// which is why picking a non-system drive in Mount Settings looked like it "did nothing".
+fn normalize_root(root: &str) -> String {
+    let trimmed = root.trim();
+    if trimmed.ends_with(['\\', '/']) {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed}\\")
+    }
+}
+
+/// Confirms a chosen drive/folder is actually writable before Mount Settings persists it —
+/// creates `<root>\AxionDam` (if needed) and writes+removes a small marker file. Without this,
+/// "Apply" could report success even when the drive was unwritable or the letter didn't exist.
+#[tauri::command]
+pub fn verify_mount_root(root: String) -> Result<(), String> {
+    let base_dir = PathBuf::from(normalize_root(&root)).join("AxionDam");
+    std::fs::create_dir_all(&base_dir).map_err(|e| format!("Can't create folder on this drive: {e}"))?;
+
+    let marker = base_dir.join(".axiondam-write-test");
+    std::fs::write(&marker, b"ok").map_err(|e| format!("Drive isn't writable: {e}"))?;
+    let _ = std::fs::remove_file(&marker);
+
+    Ok(())
+}
+
 async fn download_asset(
     _app: &AppHandle,
     url: &str,
@@ -63,10 +92,10 @@ async fn download_asset(
     // Defaults to the system drive (e.g. C:\) when the user hasn't picked one in Mount Settings —
     // always lands under <drive>\AxionDam\..., never the hidden AppData folder.
     let root = match mount_root {
-        Some(root) if !root.trim().is_empty() => root.trim().to_string(),
+        Some(root) if !root.trim().is_empty() => normalize_root(root),
         _ => {
             let system_drive = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".to_string());
-            format!("{system_drive}\\")
+            normalize_root(&system_drive)
         }
     };
     let base_dir = PathBuf::from(root).join("AxionDam");

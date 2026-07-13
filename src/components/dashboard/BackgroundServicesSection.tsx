@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Cpu, Settings, X } from "lucide-react";
+import { Cpu, Loader2, Settings, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLocalDrives } from "@/hooks/useLocalDrives";
+import { localSyncService } from "@/services/localSync.service";
 import { useMountSettingsStore } from "@/store";
 import type { BackgroundServicesSummary, BackgroundService, MountDriveOption, ServiceHealthColor } from "@/types";
 
@@ -76,6 +77,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
   const drive = options.find((d) => d.id === driveId) ?? options[0];
   const savedDrive = options.find((d) => d.id === effectiveSavedId) ?? options[0];
   const [cacheLimitGb, setCacheLimitGb] = useState(savedCacheLimitGb);
+  const [applying, setApplying] = useState(false);
   const isDirty = driveId !== effectiveSavedId || cacheLimitGb !== savedCacheLimitGb;
 
   useEffect(() => {
@@ -85,13 +87,24 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [options.map((d) => d.id).join(",")]);
 
-  function handleSave() {
-    if (isTauri && drive) setMountPoint(drive.id);
+  async function handleSave() {
+    if (isTauri && drive) {
+      setApplying(true);
+      try {
+        await localSyncService.verifyMountRoot(drive.id);
+        setMountPoint(drive.id);
+        saveCacheLimitGb(cacheLimitGb);
+        setFlipped(false);
+        toast.success(`Local sync path updated — new files now save under ${drive.label}\\AxionDam.`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Couldn't use that drive. Pick another one.");
+      } finally {
+        setApplying(false);
+      }
+      return;
+    }
     saveCacheLimitGb(cacheLimitGb);
     setFlipped(false);
-    if (isTauri && drive) {
-      toast.success(`Local sync path updated — new files now save under ${drive.label}\\AxionDam.`);
-    }
   }
 
   function handleFlipBack() {
@@ -198,14 +211,15 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
           <button
             type="button"
             onClick={handleSave}
-            disabled={!isDirty}
-            className={`mt-1 w-full rounded-lg py-1.5 text-[11px] font-medium transition-colors ${
-              isDirty
+            disabled={!isDirty || applying}
+            className={`mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition-colors ${
+              isDirty && !applying
                 ? "bg-primary/15 text-primary hover:bg-primary/25"
                 : "cursor-not-allowed bg-white/5 text-muted-foreground"
             }`}
           >
-            {isDirty ? "Save" : "Saved"}
+            {applying && <Loader2 className="size-3 animate-spin" />}
+            {applying ? "Applying…" : isDirty ? "Apply" : "Applied"}
           </button>
         </Card>
       </div>

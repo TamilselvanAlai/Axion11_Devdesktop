@@ -1,12 +1,14 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
+import { isUrl } from "@/utils/helpers";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
@@ -33,6 +35,7 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -68,7 +71,7 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
           )}
           onClick={() => selectAsset(asset.id)}
         >
-          <div className="relative h-40 w-full shrink-0">
+          <div className="relative h-40 w-full shrink-0" onDoubleClick={(e) => { e.stopPropagation(); setPreviewIndex(index); }}>
             <AssetThumbnail color={asset.thumbnailColor} className="size-full" rounded={false} />
             <span
               onClick={(e) => handleCheckboxClick(e, index, asset.id)}
@@ -121,6 +124,18 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
         </Card>
         );
       })}
+
+      {previewIndex !== null && rows[previewIndex] && (
+        <AssetPreviewModal
+          imageUrl={isUrl(rows[previewIndex].thumbnailColor) ? rows[previewIndex].thumbnailColor : null}
+          filename={rows[previewIndex].name}
+          onClose={() => setPreviewIndex(null)}
+          onPrev={() => setPreviewIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
+          onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
+          hasPrev={previewIndex > 0}
+          hasNext={previewIndex < rows.length - 1}
+        />
+      )}
     </div>
   );
 }

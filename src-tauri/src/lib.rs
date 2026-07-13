@@ -40,6 +40,7 @@ pub fn run() {
             google_oauth::google_app_signin,
             system_info::list_local_drives,
             local_sync::open_and_sync_asset,
+            local_sync::verify_mount_root,
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {

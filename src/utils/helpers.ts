@@ -5,3 +5,7 @@ export function delay(ms: number): Promise<void> {
 export function isExpired(timestampMs: number): boolean {
   return Date.now() >= timestampMs;
 }
+
+export function isUrl(value: string): boolean {
+  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
+}

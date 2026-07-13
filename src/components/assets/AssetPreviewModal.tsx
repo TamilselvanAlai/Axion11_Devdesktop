@@ -1,20 +1,34 @@
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
 
 interface AssetPreviewModalProps {
-  imageUrl: string;
+  imageUrl: string | null;
   filename: string;
   onClose: () => void;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
-export function AssetPreviewModal({ imageUrl, filename, onClose }: AssetPreviewModalProps) {
+export function AssetPreviewModal({
+  imageUrl,
+  filename,
+  onClose,
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false,
+}: AssetPreviewModalProps) {
   useEffect(() => {
-    function onEscape(e: KeyboardEvent) {
+    function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && hasPrev) onPrev?.();
+      if (e.key === "ArrowRight" && hasNext) onNext?.();
     }
-    document.addEventListener("keydown", onEscape);
-    return () => document.removeEventListener("keydown", onEscape);
-  }, [onClose]);
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, onPrev, onNext, hasPrev, hasNext]);
 
   return (
     <div
@@ -32,12 +46,43 @@ export function AssetPreviewModal({ imageUrl, filename, onClose }: AssetPreviewM
 
       <p className="absolute left-4 top-4 max-w-[70%] truncate text-sm text-white/70">{filename}</p>
 
-      <img
-        src={imageUrl}
-        alt={filename}
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
-      />
+      <div className="flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={filename}
+            className="max-h-[75vh] max-w-full rounded-lg object-contain shadow-2xl"
+          />
+        ) : (
+          <div className="flex h-64 w-64 flex-col items-center justify-center gap-2 rounded-lg bg-white/5 text-white/50">
+            <ImageOff className="size-8" />
+            <p className="text-xs">No preview available</p>
+          </div>
+        )}
+
+        {(onPrev || onNext) && (
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onPrev}
+              disabled={!hasPrev}
+              aria-label="Previous image"
+              className="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <button
+              type="button"
+              onClick={onNext}
+              disabled={!hasNext}
+              aria-label="Next image"
+              className="flex size-9 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

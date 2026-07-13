@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { CloudSyncMenu } from "@/components/shared/CloudSyncMenu";
+import { LocalSyncStatus } from "@/components/shared/LocalSyncStatus";
 import { NotificationsMenu } from "@/components/shared/NotificationsMenu";
 import { UserSettingsDialog } from "@/components/shared/UserSettingsDialog";
 import { GlobalSearch } from "@/components/shared/GlobalSearch";
@@ -27,7 +27,7 @@ export function AppHeader({ hideSearch }: { hideSearch?: boolean }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5 text-xs">
-        <CloudSyncMenu />
+        <LocalSyncStatus />
 
         <div className="mx-0.5 h-3.5 w-px bg-border" />
 

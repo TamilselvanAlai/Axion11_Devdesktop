@@ -46,6 +46,15 @@ export const localSyncService = {
     });
   },
 
+  /** Confirms a drive/folder is actually writable before Mount Settings persists it. */
+  async verifyMountRoot(root: string): Promise<void> {
+    if (!isTauri()) {
+      throw new Error("Verifying a local drive requires the desktop app.");
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke<void>("verify_mount_root", { root });
+  },
+
   async onSyncComplete(cb: (payload: AssetSyncCompletePayload) => void): Promise<() => void> {
     if (!isTauri()) return () => undefined;
     const { listen } = await import("@tauri-apps/api/event");

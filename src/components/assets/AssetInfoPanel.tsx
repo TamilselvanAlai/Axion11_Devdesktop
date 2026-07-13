@@ -7,13 +7,10 @@ import { formatRelativeTime } from "@/utils/formatters";
 import { localSyncService } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
+import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import type { AssetDetail } from "@/types";
-
-function isUrl(value: string): boolean {
-  return value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/");
-}
 
 const STATUS_META: Record<AssetDetail["status"], { label: string; dotClass: string; textClass: string }> = {
   approved: { label: "Approved", dotClass: "bg-success", textClass: "text-success" },

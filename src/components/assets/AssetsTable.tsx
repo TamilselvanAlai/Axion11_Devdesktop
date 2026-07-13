@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Eye, Download, MoreHorizontal } from "lucide-react";
 import {
   Table,
@@ -20,10 +20,12 @@ import { StatusBadge } from "@/components/assets/StatusBadge";
 import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
+import { isUrl } from "@/utils/helpers";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetSortKey } from "@/types";
 
@@ -57,6 +59,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -79,6 +82,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
   }
 
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
@@ -123,7 +127,13 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               <Checkbox checked={multiSelectedIds.has(asset.id)} aria-label={`Select ${asset.name}`} />
             </TableCell>
             <TableCell>
-              <div className="flex items-center gap-3">
+              <div
+                className="flex items-center gap-3"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  setPreviewIndex(index);
+                }}
+              >
                 <AssetThumbnail color={asset.thumbnailColor} />
                 <span className="max-w-[160px] truncate font-medium">{asset.name}</span>
               </div>
@@ -169,5 +179,18 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         ))}
       </TableBody>
     </Table>
+
+    {previewIndex !== null && rows[previewIndex] && (
+      <AssetPreviewModal
+        imageUrl={isUrl(rows[previewIndex].thumbnailColor) ? rows[previewIndex].thumbnailColor : null}
+        filename={rows[previewIndex].name}
+        onClose={() => setPreviewIndex(null)}
+        onPrev={() => setPreviewIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
+        onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
+        hasPrev={previewIndex > 0}
+        hasNext={previewIndex < rows.length - 1}
+      />
+    )}
+    </>
   );
 }

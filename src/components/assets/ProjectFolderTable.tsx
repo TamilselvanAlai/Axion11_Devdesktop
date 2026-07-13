@@ -12,7 +12,9 @@ import { ROUTES } from "@/constants/routes";
 import type { ProjectSummary } from "@/types";
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "No due date";
+  return date.toLocaleDateString("en-US", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {

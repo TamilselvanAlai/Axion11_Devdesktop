@@ -13,6 +13,7 @@ import type {
   ApiTaskGroup,
 } from "@/types";
 import { apiClient } from "@/services/api.service";
+import { workSessionService, type WorkSessionSummary } from "@/services/workSession.service";
 
 // ── Static fallbacks for sections with no backend equivalent ─────────────
 
@@ -86,16 +87,43 @@ const MOCK_BG_SERVICES: BackgroundServicesSummary = {
 
 // ── Mapping helpers ───────────────────────────────────────────────────────
 
-function mapStats(s: ApiDashboardStats, taskGroups: ApiTaskGroup[]): DashboardStatCards {
+function formatDuration(totalSeconds: number): string {
+  const totalMinutes = Math.round(totalSeconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${minutes}m`;
+}
+
+function formatSignedDuration(deltaSeconds: number): string {
+  const sign = deltaSeconds >= 0 ? "+" : "-";
+  return `${sign}${formatDuration(Math.abs(deltaSeconds))}`;
+}
+
+function formatSignedCount(delta: number): string {
+  return delta >= 0 ? `+${delta} vs. yesterday` : `${delta} vs. yesterday`;
+}
+
+function mapStats(s: ApiDashboardStats, taskGroups: ApiTaskGroup[], session: WorkSessionSummary | null): DashboardStatCards {
   const allTasks = taskGroups.flatMap((g) => g.tasks);
   const completed = allTasks.filter((t) => t.status.toUpperCase() === "COMPLETED").length;
   const pending = allTasks.length - completed;
 
   return {
-    // No "edited today" tracking exists in the backend yet — static placeholder.
-    assetsEdited: { value: 47, delta: "+12 vs. yesterday", description: "Assets Edited Today" },
-    // No active-editing-time tracking exists in the backend yet — static placeholder.
-    timeManagement: { value: "6h 24m", delta: "+45 min", description: "Active Editing Time" },
+    assetsEdited: session
+      ? {
+          value: session.assetsEditedToday,
+          delta: formatSignedCount(session.assetsEditedToday - session.assetsEditedYesterday),
+          description: "Assets Edited Today",
+        }
+      : { value: 0, delta: "No activity yet", description: "Assets Edited Today" },
+    timeManagement: session
+      ? {
+          value: formatDuration(session.activeSecondsToday),
+          delta: formatSignedDuration(session.activeSecondsToday - session.activeSecondsYesterday),
+          description: "Active Editing Time",
+        }
+      : { value: "0m", delta: "No activity yet", description: "Active Editing Time" },
     tasks:
       allTasks.length > 0
         ? { completed, pending, delta: "+8 today" }
@@ -158,11 +186,12 @@ function mapActivity(logs: ApiAuditLog[]): ActivityItem[] {
 
 export const dashboardService = {
   async getSnapshot(): Promise<DashboardSnapshot> {
-    const [statsRes, batchesRes, auditRes, taskGroupsRes] = await Promise.allSettled([
+    const [statsRes, batchesRes, auditRes, taskGroupsRes, sessionRes] = await Promise.allSettled([
       apiClient.get<ApiDashboardStats>("/dashboard/summary"),
       apiClient.get<ApiDashboardBatch[]>("/dashboard/batches"),
       apiClient.get<ApiAuditLog[]>("/audit"),
       apiClient.get<ApiTaskGroup[]>("/tasks/groups"),
+      workSessionService.getTodaySummary(),
     ]);
 
     const dashboardStats =
@@ -171,8 +200,9 @@ export const dashboardService = {
         : { totalProjects: 0, totalAssets: 0, approvedAssets: 0, pendingReview: 0, rejectedAssets: 0 };
 
     const taskGroups = taskGroupsRes.status === "fulfilled" ? taskGroupsRes.value.data : [];
+    const session = sessionRes.status === "fulfilled" ? sessionRes.value : null;
 
-    const stats = mapStats(dashboardStats, taskGroups);
+    const stats = mapStats(dashboardStats, taskGroups, session);
 
     if (batchesRes.status === "rejected") {
       console.error("Failed to load dashboard batches:", batchesRes.reason);
