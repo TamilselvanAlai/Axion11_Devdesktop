@@ -122,11 +122,13 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
         }
       : service;
 
+  const cardHeight = flipped ? 200 : 172;
+
   return (
-    <div className="rounded-xl" style={{ minHeight: 172, perspective: "1000px" }}>
+    <div className="rounded-xl" style={{ minHeight: cardHeight, perspective: "1000px" }}>
       <div
         className="relative size-full transition-transform duration-500"
-        style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)", minHeight: 172 }}
+        style={{ transformStyle: "preserve-3d", transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)", minHeight: cardHeight }}
       >
         <Card
           className="absolute inset-0 gap-3 p-4"
@@ -169,7 +171,22 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
 
           <div className="flex flex-col gap-3">
             <div>
-              <label className="mb-1.5 block text-[10px] uppercase tracking-wider text-muted-foreground">Local Drive</label>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Local Drive</label>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!isDirty || applying}
+                  className={`flex shrink-0 items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    isDirty && !applying
+                      ? "bg-primary/15 text-primary hover:bg-primary/25"
+                      : "cursor-not-allowed bg-white/5 text-muted-foreground"
+                  }`}
+                >
+                  {applying && <Loader2 className="size-2.5 animate-spin" />}
+                  {applying ? "Applying…" : isDirty ? "Apply" : "Applied"}
+                </button>
+              </div>
               <select
                 value={driveId}
                 onChange={(e) => {
@@ -207,20 +224,6 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
               </div>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isDirty || applying}
-            className={`mt-1 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[11px] font-medium transition-colors ${
-              isDirty && !applying
-                ? "bg-primary/15 text-primary hover:bg-primary/25"
-                : "cursor-not-allowed bg-white/5 text-muted-foreground"
-            }`}
-          >
-            {applying && <Loader2 className="size-3 animate-spin" />}
-            {applying ? "Applying…" : isDirty ? "Apply" : "Applied"}
-          </button>
         </Card>
       </div>
     </div>

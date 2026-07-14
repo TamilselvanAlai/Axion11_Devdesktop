@@ -181,7 +181,24 @@ fn start_watching(
         for res in rx {
             let Ok(event) = res else { continue };
             let touches_file = event.paths.iter().any(|p| p == &watch_path);
-            if !touches_file || !matches!(event.kind, notify::EventKind::Modify(_)) {
+            // Many editors (Photoshop, Office, Illustrator, etc.) don't modify the file in
+            // place — they write a temp file, delete the original, then rename/create the
+            // replacement at the same path. That sequence fires Remove+Create, never Modify,
+            // so a save could be silently missed if we only listened for Modify.
+            if !touches_file
+                || !matches!(
+                    event.kind,
+                    notify::EventKind::Modify(_) | notify::EventKind::Create(_)
+                )
+            {
+                continue;
+            }
+            // A Create means the file was just replaced — give the writer a beat longer to
+            // finish before we try to read it, since replace-on-save can still be settling.
+            if matches!(event.kind, notify::EventKind::Create(_)) {
+                std::thread::sleep(Duration::from_millis(200));
+            }
+            if !watch_path.exists() {
                 continue;
             }
 
