@@ -1,23 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket } from "lucide-react";
+import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
-import { formatRelativeTime } from "@/utils/formatters";
-import { localSyncService } from "@/services/localSync.service";
+import { formatDuration, formatRelativeTime } from "@/utils/formatters";
+import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
 import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
+import { getStatusMeta } from "@/utils/assetStatus";
 import type { AssetDetail } from "@/types";
-
-const STATUS_META: Record<AssetDetail["status"], { label: string; dotClass: string; textClass: string }> = {
-  draft: { label: "Draft", dotClass: "bg-warning", textClass: "text-warning" },
-  approved: { label: "Approved", dotClass: "bg-success", textClass: "text-success" },
-  rejected: { label: "Rejected", dotClass: "bg-danger", textClass: "text-danger" },
-  live: { label: "Live", dotClass: "bg-info", textClass: "text-info" },
-};
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -30,7 +24,7 @@ function formatDateTime(iso: string) {
 }
 
 export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail; onStatusChange?: () => void }) {
-  const status = STATUS_META[detail.status];
+  const status = getStatusMeta(detail.status, detail.version);
   const projectTree = useAssetStore((s) => s.projectTree);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
@@ -38,8 +32,29 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
+  const [localInfo, setLocalInfo] = useState<OpenAssetResult | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
+  // Once a local copy exists, opening it again just reopens the same file in the OS default
+  // app (no re-download) — surfaced as "Retouch" so it's clear no fresh download is happening.
+  const isRetouch = isTauri && localInfo !== null;
+
+  // Picks up an already-downloaded local copy (and its first-opened timestamp) even when this
+  // session isn't what triggered the download, so "Time Spent" shows up on revisit.
+  useEffect(() => {
+    if (!isTauri || !detail.batchId) {
+      setLocalInfo(null);
+      return;
+    }
+    let cancelled = false;
+    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+    localSyncService.getLocalAssetInfo({ relativePath, mountRoot: mountPoint }).then((info) => {
+      if (!cancelled) setLocalInfo(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isTauri, detail.batchId, detail.filename, projectTree, mountPoint]);
 
   async function handleOpenFile() {
     if (!detail.downloadUrl) {
@@ -59,13 +74,14 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     setOpening(true);
     try {
       const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
-      await localSyncService.openAndSync({
+      const result = await localSyncService.openAndSync({
         downloadUrl: detail.downloadUrl,
         relativePath,
         assetId: detail.id,
         batchId: detail.batch,
         mountRoot: mountPoint,
       });
+      setLocalInfo(result);
       assetService.recordDownload(detail.id);
       toast.success("Opened — saving the file will sync a new version automatically.");
     } catch (err) {
@@ -109,6 +125,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     { label: "ETA", value: formatDateTime(detail.etaAt) },
     { label: "Assigned", value: detail.assignee.name },
     { label: "Modified", value: formatRelativeTime(detail.modifiedAt) },
+    ...(localInfo ? [{ label: "Time Spent", value: formatDuration(Date.now() - localInfo.openedAt) }] : []),
   ];
 
   return (
@@ -151,8 +168,14 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
               disabled={opening || !detail.downloadUrl}
               className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {opening ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}
-              {opening ? "Opening…" : "Open File"}
+              {opening ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : isRetouch ? (
+                <Pencil className="size-3" />
+              ) : (
+                <RefreshCw className="size-3" />
+              )}
+              {opening ? "Opening…" : isRetouch ? "Retouch" : "Open File"}
             </button>
             <button
               onClick={handlePreview}

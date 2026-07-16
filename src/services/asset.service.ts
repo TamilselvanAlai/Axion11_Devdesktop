@@ -30,11 +30,19 @@ function mimeToFileType(mime: string | null): AssetFileType {
   return "OTHER";
 }
 
-function toAssetStatus(approvalStatus: string | null): AssetStatus {
+function toAssetStatus(approvalStatus: string | null, qcCheck: string | null): AssetStatus {
   switch ((approvalStatus ?? "").toLowerCase()) {
     case "approved": return "approved";
     case "rejected": return "rejected";
     case "live":     return "live";
+  }
+
+  // Old QC-based fallback: before a human explicitly approves/rejects an asset
+  // (approvalStatus unset), fall back to the automated quality check result —
+  // this is how status used to be derived before human approvals were added.
+  switch ((qcCheck ?? "").toUpperCase()) {
+    case "PASSED":   return "approved";
+    case "REJECTED": return "rejected";
     default:         return "draft";
   }
 }
@@ -49,7 +57,7 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     projectId: dto.projectId ? String(dto.projectId) : "",
     batchId: dto.batchId ? `b-${dto.batchId}` : null,
     name: dto.fileName,
-    status: toAssetStatus(dto.approvalStatus),
+    status: toAssetStatus(dto.approvalStatus, dto.imageQualityQcCheck),
     fileType: mimeToFileType(dto.contentType),
     sizeMb,
     version: `v${dto.versionNumber ?? 1}`,

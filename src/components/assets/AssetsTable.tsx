@@ -139,7 +139,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               </div>
             </TableCell>
             <TableCell>
-              <StatusBadge status={asset.status} />
+              <StatusBadge status={asset.status} version={asset.version} />
             </TableCell>
             <TableCell>
               <FileTypeBadge fileType={asset.fileType} />

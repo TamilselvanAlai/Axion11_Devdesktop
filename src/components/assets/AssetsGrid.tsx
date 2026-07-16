@@ -99,7 +99,7 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
             <p className="truncate text-sm font-semibold">{asset.name}</p>
 
             <div className="flex items-center justify-between gap-2">
-              <StatusBadge status={asset.status} />
+              <StatusBadge status={asset.status} version={asset.version} />
               <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatSize(asset.sizeMb)}</span>
             </div>
 

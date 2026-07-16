@@ -3,13 +3,23 @@ use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
 
 /// Paths currently being watched, so re-opening the same asset doesn't spawn duplicate watchers.
 fn watched_paths() -> &'static Mutex<HashSet<PathBuf>> {
     static WATCHED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
     WATCHED.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+#[derive(Serialize, Clone)]
+pub struct OpenAssetResult {
+    #[serde(rename = "localPath")]
+    local_path: String,
+    /// Epoch-millis timestamp of when this asset was first opened locally — kept stable across
+    /// repeat opens so it can be used to compute how long someone has been working on it.
+    #[serde(rename = "openedAt")]
+    opened_at: i64,
 }
 
 #[derive(Serialize, Clone)]
@@ -43,15 +53,54 @@ pub async fn open_and_sync_asset(
     upload_url: String,
     auth_token: String,
     mount_root: Option<String>,
-) -> Result<String, String> {
+) -> Result<OpenAssetResult, String> {
     let local_path = download_asset(&app, &download_url, &relative_path, mount_root.as_deref()).await?;
+    let opened_at = get_or_record_opened_at(&local_path)?;
 
     tauri_plugin_opener::open_path(local_path.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| format!("Failed to open file: {e}"))?;
 
     start_watching(app, local_path.clone(), asset_id, batch_id, upload_url, auth_token);
 
-    Ok(local_path.to_string_lossy().to_string())
+    Ok(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
+}
+
+/// Looks up an already-downloaded asset without downloading or opening it — lets the UI show
+/// "time spent" (based on the first-opened marker) even when the panel wasn't the thing that
+/// triggered the download. Returns `None` if no local copy exists yet.
+#[tauri::command]
+pub fn get_local_asset_info(relative_path: String, mount_root: Option<String>) -> Option<OpenAssetResult> {
+    let local_path = resolve_local_path(&relative_path, mount_root.as_deref());
+    if !local_path.exists() {
+        return None;
+    }
+    let opened_at = get_or_record_opened_at(&local_path).ok()?;
+    Some(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
+}
+
+/// Marker file recording when an asset was first opened locally, kept alongside the asset itself.
+fn opened_at_marker_path(local_path: &Path) -> PathBuf {
+    let mut name = local_path.as_os_str().to_owned();
+    name.push(".opened-at");
+    PathBuf::from(name)
+}
+
+/// Returns the epoch-millis timestamp of when this asset was first opened. Creates the marker
+/// with the current time on first call; later calls return the original (older) value unchanged
+/// so re-opening an already-downloaded asset doesn't reset the "time spent" clock.
+fn get_or_record_opened_at(local_path: &Path) -> Result<i64, String> {
+    let marker = opened_at_marker_path(local_path);
+    if let Ok(existing) = std::fs::read_to_string(&marker) {
+        if let Ok(ms) = existing.trim().parse::<i64>() {
+            return Ok(ms);
+        }
+    }
+    let now_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| format!("Clock error: {e}"))?
+        .as_millis() as i64;
+    std::fs::write(&marker, now_ms.to_string()).map_err(|e| format!("Failed to record open time: {e}"))?;
+    Ok(now_ms)
 }
 
 /// Ensures a drive/folder root is treated as an absolute path, e.g. `"E:"` -> `"E:\\"`.
@@ -83,12 +132,9 @@ pub fn verify_mount_root(root: String) -> Result<(), String> {
     Ok(())
 }
 
-async fn download_asset(
-    _app: &AppHandle,
-    url: &str,
-    relative_path: &str,
-    mount_root: Option<&str>,
-) -> Result<PathBuf, String> {
+/// Resolves the local path an asset would live at, mirroring the project tree under
+/// `<mountRoot or system drive>\AxionDam\...`, without touching the filesystem.
+fn resolve_local_path(relative_path: &str, mount_root: Option<&str>) -> PathBuf {
     // Defaults to the system drive (e.g. C:\) when the user hasn't picked one in Mount Settings —
     // always lands under <drive>\AxionDam\..., never the hidden AppData folder.
     let root = match mount_root {
@@ -99,11 +145,24 @@ async fn download_asset(
         }
     };
     let base_dir = PathBuf::from(root).join("AxionDam");
+    sanitize_join(&base_dir, relative_path)
+}
 
-    let local_path = sanitize_join(&base_dir, relative_path);
+async fn download_asset(
+    _app: &AppHandle,
+    url: &str,
+    relative_path: &str,
+    mount_root: Option<&str>,
+) -> Result<PathBuf, String> {
+    let local_path = resolve_local_path(relative_path, mount_root);
 
     if let Some(parent) = local_path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create local folder: {e}"))?;
+    }
+
+    // Already downloaded — open the local copy instead of re-fetching it.
+    if local_path.exists() {
+        return Ok(local_path);
     }
 
     let response = reqwest::get(url)
@@ -246,6 +305,27 @@ fn start_watching(
     });
 }
 
+/// The backend stores whatever content-type the upload part declares — guess it from the
+/// extension so a re-saved file keeps its real type (JPG/TIFF/PSD/...) instead of falling back
+/// to a generic binary type that the UI can't categorize.
+fn guess_mime_type(path: &Path) -> &'static str {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "jpg" | "jpeg" => "image/jpeg",
+        "png" => "image/png",
+        "tif" | "tiff" => "image/tiff",
+        "psd" => "image/vnd.adobe.photoshop",
+        "cr3" => "image/x-canon-cr3",
+        "mp4" | "mov" => "video/mp4",
+        "zip" => "application/zip",
+        _ => "application/octet-stream",
+    }
+}
+
 async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_token: &str) -> Result<(), String> {
     let file_name = path
         .file_name()
@@ -256,7 +336,7 @@ async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_
 
     let part = reqwest::multipart::Part::bytes(bytes)
         .file_name(file_name)
-        .mime_str("application/octet-stream")
+        .mime_str(guess_mime_type(path))
         .map_err(|e| format!("Failed to build upload: {e}"))?;
     let form = reqwest::multipart::Form::new().part("files", part);
 

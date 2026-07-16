@@ -7,6 +7,13 @@ export interface AssetSyncCompletePayload {
   localPath: string;
 }
 
+export interface OpenAssetResult {
+  localPath: string;
+  /** Epoch-millis timestamp of when this asset was first opened locally — stable across
+   *  repeat opens, so it can be used to compute how long someone has spent on it. */
+  openedAt: number;
+}
+
 export interface AssetSyncErrorPayload {
   assetId: string;
   error: string;
@@ -29,19 +36,30 @@ export const localSyncService = {
     assetId: string;
     batchId: string;
     mountRoot?: string | null;
-  }): Promise<string> {
+  }): Promise<OpenAssetResult> {
     if (!isTauri()) {
       throw new Error("Opening and syncing files locally requires the desktop app.");
     }
     const { invoke } = await import("@tauri-apps/api/core");
     const token = useAuthStore.getState().token ?? "";
-    return invoke<string>("open_and_sync_asset", {
+    return invoke<OpenAssetResult>("open_and_sync_asset", {
       downloadUrl: params.downloadUrl,
       relativePath: params.relativePath,
       assetId: params.assetId,
       batchId: params.batchId,
       uploadUrl: `${env.apiBaseUrl}/batches/upload/{batchId}`,
       authToken: token,
+      mountRoot: params.mountRoot ?? null,
+    });
+  },
+
+  /** Looks up an already-downloaded asset without downloading or opening it, so the UI can show
+   *  "time spent" even when this session isn't what triggered the download. */
+  async getLocalAssetInfo(params: { relativePath: string; mountRoot?: string | null }): Promise<OpenAssetResult | null> {
+    if (!isTauri()) return null;
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<OpenAssetResult | null>("get_local_asset_info", {
+      relativePath: params.relativePath,
       mountRoot: params.mountRoot ?? null,
     });
   },
