@@ -5,11 +5,10 @@ import { hasActiveFilters } from "@/utils/assetFilters";
 import type { Asset, AssetFileType, AssetStatus, ProjectNode } from "@/types";
 
 const STATUS_OPTIONS: { value: AssetStatus; label: string }[] = [
+  { value: "draft", label: "Draft" },
   { value: "approved", label: "Approved" },
-  { value: "pending", label: "Pending" },
-  { value: "in-review", label: "In Review" },
   { value: "rejected", label: "Rejected" },
-  { value: "processing", label: "Processing" },
+  { value: "live", label: "Live" },
 ];
 
 const TYPE_OPTIONS: AssetFileType[] = ["TIFF", "PSD", "CR3", "JPG", "PNG", "MP4", "ZIP", "OTHER"];

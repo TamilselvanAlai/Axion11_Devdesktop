@@ -103,12 +103,6 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
               <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatSize(asset.sizeMb)}</span>
             </div>
 
-            {asset.status === "processing" && (
-              <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-                <div className="h-full w-2/3 animate-pulse rounded-full bg-primary" />
-              </div>
-            )}
-
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1.5">
                 <Avatar size="sm" className="bg-primary/20">

@@ -104,10 +104,23 @@ function formatSignedCount(delta: number): string {
   return delta >= 0 ? `+${delta} vs. yesterday` : `${delta} vs. yesterday`;
 }
 
+function isSameLocalDay(isoString: string, reference: Date): boolean {
+  const d = new Date(isoString);
+  return (
+    d.getFullYear() === reference.getFullYear() &&
+    d.getMonth() === reference.getMonth() &&
+    d.getDate() === reference.getDate()
+  );
+}
+
 function mapStats(s: ApiDashboardStats, taskGroups: ApiTaskGroup[], session: WorkSessionSummary | null): DashboardStatCards {
   const allTasks = taskGroups.flatMap((g) => g.tasks);
   const completed = allTasks.filter((t) => t.status.toUpperCase() === "COMPLETED").length;
   const pending = allTasks.length - completed;
+
+  const now = new Date();
+  const completedToday = allTasks.filter((t) => t.completedAt && isSameLocalDay(t.completedAt, now)).length;
+  const tasksDelta = `+${completedToday} today`;
 
   return {
     assetsEdited: session
@@ -126,8 +139,8 @@ function mapStats(s: ApiDashboardStats, taskGroups: ApiTaskGroup[], session: Wor
       : { value: "0m", delta: "No activity yet", description: "Active Editing Time" },
     tasks:
       allTasks.length > 0
-        ? { completed, pending, delta: "+8 today" }
-        : { completed: s.approvedAssets, pending: s.pendingReview, delta: "+8 today" },
+        ? { completed, pending, delta: tasksDelta }
+        : { completed: s.approvedAssets, pending: s.pendingReview, delta: tasksDelta },
   };
 }
 

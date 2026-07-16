@@ -30,12 +30,12 @@ function mimeToFileType(mime: string | null): AssetFileType {
   return "OTHER";
 }
 
-function qcToStatus(qc: string | null): AssetStatus {
-  switch ((qc ?? "").toUpperCase()) {
-    case "PASSED":   return "approved";
-    case "WARNING":  return "in-review";
-    case "REJECTED": return "rejected";
-    default:         return "pending";
+function toAssetStatus(approvalStatus: string | null): AssetStatus {
+  switch ((approvalStatus ?? "").toLowerCase()) {
+    case "approved": return "approved";
+    case "rejected": return "rejected";
+    case "live":     return "live";
+    default:         return "draft";
   }
 }
 
@@ -49,7 +49,7 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     projectId: dto.projectId ? String(dto.projectId) : "",
     batchId: dto.batchId ? `b-${dto.batchId}` : null,
     name: dto.fileName,
-    status: qcToStatus(dto.imageQualityQcCheck),
+    status: toAssetStatus(dto.approvalStatus),
     fileType: mimeToFileType(dto.contentType),
     sizeMb,
     version: `v${dto.versionNumber ?? 1}`,
@@ -195,6 +195,12 @@ export const assetService = {
 
   async rejectAsset(assetId: string): Promise<void> {
     await apiClient.post(`/assets/${encodeURIComponent(assetId)}/reject`);
+  },
+
+  /** Publishes an already-approved asset live. Backend rejects this unless the asset is
+   *  currently "approved". */
+  async publishAsset(assetId: string): Promise<void> {
+    await apiClient.post(`/assets/${encodeURIComponent(assetId)}/publish`);
   },
 
   async getComments(assetId: string): Promise<AssetComment[]> {

@@ -1,4 +1,4 @@
-export type AssetStatus = "approved" | "pending" | "in-review" | "rejected" | "processing";
+export type AssetStatus = "draft" | "approved" | "rejected" | "live";
 
 export type AssetFileType = "TIFF" | "PSD" | "CR3" | "JPG" | "PNG" | "MP4" | "ZIP" | "OTHER";
 
@@ -101,6 +101,7 @@ export interface ImageUploadApiDto {
   originalUploadId: number | null;
   assignedToUserId: number | null;
   assignedToName: string | null;
+  approvalStatus: string | null;
 }
 
 export interface ProjectTreeApiNode {

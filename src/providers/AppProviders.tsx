@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { NetworkStatusAlert } from "@/components/shared/NetworkStatusAlert";
 import { useWorkSessionTracking } from "@/hooks/useWorkSessionTracking";
+import { useDashboardAutoRefresh } from "@/hooks/useDashboardAutoRefresh";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,6 +14,7 @@ const queryClient = new QueryClient({
 
 function WorkSessionTracker() {
   useWorkSessionTracking();
+  useDashboardAutoRefresh();
   return null;
 }
 

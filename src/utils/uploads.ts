@@ -37,7 +37,7 @@ export function createAssetsFromFiles(files: FileList | File[], projectId: strin
       projectId,
       batchId: projectId.startsWith("b-") ? projectId : null,
       name,
-      status: "processing",
+      status: "draft",
       fileType: inferFileType(file.name),
       sizeMb: Math.max(1, Math.round((file.size / (1024 * 1024)) * 10) / 10),
       version: "v1",

@@ -5,13 +5,15 @@ import { useAssetStore } from "@/store";
 import type { AssetScope } from "@/types";
 
 export function useAssets(scope: AssetScope) {
-  const { assets, status, setAssets, resetForNavigation } = useAssetStore();
+  const { assets, status, setAssets, resetForNavigation, setCurrentScope } = useAssetStore();
   const scopeKey = typeof scope === "string" ? scope : scope.projectId;
 
   useEffect(() => {
     resetForNavigation();
+    setCurrentScope(scope);
     assetService.listAssets(scope).then(setAssets);
-  }, [scopeKey, setAssets, resetForNavigation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey, setAssets, resetForNavigation, setCurrentScope]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;

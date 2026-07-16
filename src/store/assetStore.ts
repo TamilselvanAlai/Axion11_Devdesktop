@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import type { Asset, AssetFilters, AssetSortKey, AssetViewMode, LoadingState, ProjectNode, ProjectSummary } from "@/types";
+import type { Asset, AssetFilters, AssetScope, AssetSortKey, AssetViewMode, LoadingState, ProjectNode, ProjectSummary } from "@/types";
+import { assetService } from "@/services/asset.service";
 
 const EMPTY_FILTERS: AssetFilters = { status: null, fileType: null, batchId: null, assigneeName: null };
 
@@ -15,8 +16,16 @@ interface AssetStoreState {
   expandedIds: Set<string>;
   selectedAssetId: string | null;
   multiSelectedIds: Set<string>;
+  /** Scope backing the currently-displayed asset list, set by useAssets on every fetch —
+   *  lets actions taken elsewhere (e.g. approve/reject in the detail panel) refresh the
+   *  list without needing to know or re-derive the scope themselves. */
+  currentScope: AssetScope | null;
   setProjectTree: (tree: ProjectNode[]) => void;
   setAssets: (assets: Asset[]) => void;
+  setCurrentScope: (scope: AssetScope) => void;
+  /** Re-fetches the asset list for whatever scope is currently displayed. No-op if nothing
+   *  has been fetched yet (currentScope unset). */
+  refetchAssets: () => Promise<void>;
   addAssets: (assets: Asset[]) => void;
   setFolderSummary: (summary: ProjectSummary[]) => void;
   setStatus: (status: LoadingState) => void;
@@ -36,7 +45,7 @@ interface AssetStoreState {
   clearMultiSelect: () => void;
 }
 
-export const useAssetStore = create<AssetStoreState>((set) => ({
+export const useAssetStore = create<AssetStoreState>((set, get) => ({
   projectTree: [],
   assets: [],
   folderSummary: [],
@@ -48,8 +57,16 @@ export const useAssetStore = create<AssetStoreState>((set) => ({
   expandedIds: new Set(["ss25-campaign", "aw25-campaign"]),
   selectedAssetId: null,
   multiSelectedIds: new Set(),
+  currentScope: null,
   setProjectTree: (projectTree) => set({ projectTree }),
   setAssets: (assets) => set({ assets, status: "success" }),
+  setCurrentScope: (currentScope) => set({ currentScope }),
+  refetchAssets: async () => {
+    const { currentScope } = get();
+    if (!currentScope) return;
+    const assets = await assetService.listAssets(currentScope);
+    set({ assets, status: "success" });
+  },
   addAssets: (newAssets) => set((state) => ({ assets: [...newAssets, ...state.assets] })),
   setFolderSummary: (folderSummary) => set({ folderSummary, status: "success" }),
   setStatus: (status) => set({ status }),

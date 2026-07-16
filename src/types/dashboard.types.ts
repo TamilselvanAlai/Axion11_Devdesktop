@@ -148,6 +148,7 @@ export interface ApiTask {
   id: number;
   name: string;
   status: string;
+  completedAt: string | null;
 }
 
 export interface ApiTaskGroup {

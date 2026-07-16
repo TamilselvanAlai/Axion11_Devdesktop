@@ -19,7 +19,13 @@ export function RightPanel() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("info");
   const { snapshot } = useDashboard();
   const selectedAssetId = useAssetStore((state) => state.selectedAssetId);
+  const refetchAssets = useAssetStore((state) => state.refetchAssets);
   const { detail, status, refetch } = useAssetDetail(selectedAssetId);
+
+  function handleStatusChange() {
+    refetch();
+    refetchAssets();
+  }
 
   // Selecting a new asset should surface its own details, not whatever tab was
   // left open (e.g. History/Comments) from a previously selected asset.
@@ -79,7 +85,7 @@ export function RightPanel() {
                   <Skeleton className="h-4 w-1/2 rounded" />
                 </div>
               ) : (
-                <AssetInfoPanel detail={detail} onStatusChange={refetch} />
+                <AssetInfoPanel detail={detail} onStatusChange={handleStatusChange} />
               )
             ) : tab === "comments" ? (
               <AssetCommentsPanel assetId={selectedAssetId!} />

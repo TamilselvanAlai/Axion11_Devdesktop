@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X } from "lucide-react";
+import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { formatRelativeTime } from "@/utils/formatters";
@@ -13,11 +13,10 @@ import { useUser } from "@/hooks/useUser";
 import type { AssetDetail } from "@/types";
 
 const STATUS_META: Record<AssetDetail["status"], { label: string; dotClass: string; textClass: string }> = {
+  draft: { label: "Draft", dotClass: "bg-warning", textClass: "text-warning" },
   approved: { label: "Approved", dotClass: "bg-success", textClass: "text-success" },
-  pending: { label: "Pending", dotClass: "bg-warning", textClass: "text-warning" },
-  "in-review": { label: "In Review", dotClass: "bg-info", textClass: "text-info" },
   rejected: { label: "Rejected", dotClass: "bg-danger", textClass: "text-danger" },
-  processing: { label: "Processing", dotClass: "bg-muted-foreground", textClass: "text-muted-foreground" },
+  live: { label: "Live", dotClass: "bg-info", textClass: "text-info" },
 };
 
 function formatDateTime(iso: string) {
@@ -38,7 +37,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
 
@@ -84,12 +83,15 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     setPreviewOpen(true);
   }
 
-  async function handleDecision(decision: "approve" | "reject") {
+  async function handleDecision(decision: "approve" | "reject" | "publish") {
     setDeciding(decision);
     try {
       if (decision === "approve") await assetService.approveAsset(detail.id);
-      else await assetService.rejectAsset(detail.id);
-      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
+      else if (decision === "reject") await assetService.rejectAsset(detail.id);
+      else await assetService.publishAsset(detail.id);
+      toast.success(
+        decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Asset published live."
+      );
       onStatusChange?.();
     } catch {
       toast.error(`Failed to ${decision} asset.`);
@@ -168,7 +170,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => handleDecision("approve")}
-              disabled={deciding !== null || detail.status === "approved"}
+              disabled={deciding !== null || detail.status === "approved" || detail.status === "live"}
               className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white shadow-md shadow-success/20 transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
@@ -176,13 +178,23 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
             </button>
             <button
               onClick={() => handleDecision("reject")}
-              disabled={deciding !== null || detail.status === "rejected"}
+              disabled={deciding !== null || detail.status === "rejected" || detail.status === "live"}
               className="flex items-center justify-center gap-1.5 rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white shadow-md shadow-danger/20 transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deciding === "reject" ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
               Reject
             </button>
           </div>
+          {detail.status === "approved" && (
+            <button
+              onClick={() => handleDecision("publish")}
+              disabled={deciding !== null}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-info px-3 py-2 text-xs font-medium text-white shadow-md shadow-info/20 transition-colors hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {deciding === "publish" ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}
+              Publish to Live
+            </button>
+          )}
         </div>
       )}
 
