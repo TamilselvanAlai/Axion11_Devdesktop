@@ -22,3 +22,7 @@ npm run tauri dev ===> desktop app
 
 gcloud run deploy axion11-backend --source ./backend --region=us-central1 --project=axion11-prod
 backend deploy script command
+
+
+Username: admin@gmail.com
+Password: zybE63AGvOizM6YLyEOU

@@ -171,12 +171,12 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+            {/* <div className="flex items-center justify-between">
               <span>Cloud Sync</span>
               <span className={`flex items-center gap-1 ${SYNC_TEXT_CLASS[syncStatus]}`}>
                 <span className={`size-1.5 rounded-full ${SYNC_DOT_CLASS[syncStatus]}`} /> {SYNC_LABEL[syncStatus]}
               </span>
-            </div>
+            </div> */}
             <div className="flex flex-col gap-1">
               <div className="flex items-center justify-between">
                 <span>Cache Usage</span>

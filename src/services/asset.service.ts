@@ -18,7 +18,7 @@ import { getInitials } from "@/utils/formatters";
 
 // ── Converters ───────────────────────────────────────────────────────────
 
-function mimeToFileType(mime: string | null): AssetFileType {
+function mimeToFileType(mime: string | null, fileName?: string | null): AssetFileType {
   const m = (mime ?? "").toLowerCase();
   if (m.includes("photoshop") || m.includes("psd")) return "PSD";
   if (m === "image/tiff" || m.includes("tiff")) return "TIFF";
@@ -27,7 +27,24 @@ function mimeToFileType(mime: string | null): AssetFileType {
   if (m.includes("png")) return "PNG";
   if (m.startsWith("video/")) return "MP4";
   if (m.includes("zip") || m.includes("compressed")) return "ZIP";
-  return "OTHER";
+
+  // The content-type reported at upload time is often generic or missing entirely — browsers
+  // have no registered MIME type for PSD/CR3, and some upload paths lose it altogether — so
+  // fall back to the filename extension rather than showing everything as "OTHER".
+  const ext = (fileName ?? "").toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "psd":          return "PSD";
+    case "tif":
+    case "tiff":         return "TIFF";
+    case "cr3":          return "CR3";
+    case "jpg":
+    case "jpeg":         return "JPG";
+    case "png":          return "PNG";
+    case "mp4":
+    case "mov":          return "MP4";
+    case "zip":          return "ZIP";
+    default:             return "OTHER";
+  }
 }
 
 function toAssetStatus(approvalStatus: string | null, qcCheck: string | null): AssetStatus {
@@ -58,7 +75,7 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     batchId: dto.batchId ? `b-${dto.batchId}` : null,
     name: dto.fileName,
     status: toAssetStatus(dto.approvalStatus, dto.imageQualityQcCheck),
-    fileType: mimeToFileType(dto.contentType),
+    fileType: mimeToFileType(dto.contentType, dto.fileName),
     sizeMb,
     version: `v${dto.versionNumber ?? 1}`,
     assignee: { name: assigneeName, initials: getInitials(assigneeName) },
