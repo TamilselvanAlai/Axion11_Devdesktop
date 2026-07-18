@@ -6,6 +6,7 @@ import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { formatDuration, formatRelativeTime } from "@/utils/formatters";
 import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
+import { assetEditSessionService } from "@/services/assetEditSession.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
 import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
@@ -83,6 +84,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       });
       setLocalInfo(result);
       assetService.recordDownload(detail.id);
+      assetEditSessionService.start(detail.id).catch(() => undefined);
       toast.success("Opened — saving the file will sync a new version automatically.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open file.");

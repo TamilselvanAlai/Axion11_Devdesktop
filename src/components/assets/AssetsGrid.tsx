@@ -20,6 +20,7 @@ const TYPE_BADGE_CLASS: Record<AssetFileType, string> = {
   CR3: "bg-emerald-500/15 text-emerald-400",
   JPG: "bg-violet-500/15 text-violet-400",
   PNG: "bg-violet-500/15 text-violet-400",
+  WEBP: "bg-violet-500/15 text-violet-400",
   MP4: "bg-pink-500/15 text-pink-400",
   ZIP: "bg-warning/15 text-warning",
   OTHER: "bg-white/10 text-muted-foreground",

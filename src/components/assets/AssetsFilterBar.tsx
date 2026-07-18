@@ -11,7 +11,7 @@ const STATUS_OPTIONS: { value: AssetStatus; label: string }[] = [
   { value: "live", label: "Live" },
 ];
 
-const TYPE_OPTIONS: AssetFileType[] = ["TIFF", "PSD", "CR3", "JPG", "PNG", "MP4", "ZIP", "OTHER"];
+const TYPE_OPTIONS: AssetFileType[] = ["TIFF", "PSD", "CR3", "JPG", "PNG", "WEBP", "MP4", "ZIP", "OTHER"];
 
 function findNodeName(nodes: ProjectNode[], id: string): string | null {
   for (const node of nodes) {

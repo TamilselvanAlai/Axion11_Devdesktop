@@ -1,6 +1,6 @@
 export type AssetStatus = "draft" | "approved" | "rejected" | "live";
 
-export type AssetFileType = "TIFF" | "PSD" | "CR3" | "JPG" | "PNG" | "MP4" | "ZIP" | "OTHER";
+export type AssetFileType = "TIFF" | "PSD" | "CR3" | "JPG" | "PNG" | "WEBP" | "MP4" | "ZIP" | "OTHER";
 
 export interface AssetAssignee {
   name: string;

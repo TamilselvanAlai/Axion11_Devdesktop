@@ -30,6 +30,10 @@ struct SyncCompletePayload {
     batch_id: String,
     #[serde(rename = "localPath")]
     local_path: String,
+    /// The freshly created version's asset id — the backend links each save as a brand-new row,
+    /// so the UI needs this to switch over to it instead of continuing to show the old one.
+    #[serde(rename = "newAssetId")]
+    new_asset_id: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -284,13 +288,14 @@ fn start_watching(
                     &auth_token,
                 ));
                 match result {
-                    Ok(()) => {
+                    Ok(new_asset_id) => {
                         let _ = app.emit(
                             "asset-sync-complete",
                             SyncCompletePayload {
                                 asset_id,
                                 batch_id,
                                 local_path: watch_path.to_string_lossy().to_string(),
+                                new_asset_id,
                             },
                         );
                     }
@@ -317,6 +322,7 @@ fn guess_mime_type(path: &Path) -> &'static str {
     match ext.as_str() {
         "jpg" | "jpeg" => "image/jpeg",
         "png" => "image/png",
+        "webp" => "image/webp",
         "tif" | "tiff" => "image/tiff",
         "psd" => "image/vnd.adobe.photoshop",
         "cr3" => "image/x-canon-cr3",
@@ -326,7 +332,13 @@ fn guess_mime_type(path: &Path) -> &'static str {
     }
 }
 
-async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_token: &str) -> Result<(), String> {
+/// Re-uploads the saved file as a new version and returns that new version's asset id — the
+/// backend creates an entirely separate row for each version, so callers need this id to point
+/// the UI at the fresh row instead of continuing to show the stale one that was open before the
+/// edit. Uses the synchronous /upload-sync endpoint specifically because the response is needed
+/// immediately; the regular batch-upload endpoint processes on a background thread and its
+/// response returns before the row even exists.
+async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_token: &str) -> Result<String, String> {
     let file_name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -338,7 +350,7 @@ async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_
         .file_name(file_name)
         .mime_str(guess_mime_type(path))
         .map_err(|e| format!("Failed to build upload: {e}"))?;
-    let form = reqwest::multipart::Form::new().part("files", part);
+    let form = reqwest::multipart::Form::new().part("file", part);
 
     let client = reqwest::Client::new();
     let url = upload_url.replace("{batchId}", batch_id);
@@ -353,5 +365,13 @@ async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_
     if !response.status().is_success() {
         return Err(format!("Upload failed with status {}", response.status()));
     }
-    Ok(())
+
+    let body: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse upload response: {e}"))?;
+    body.get("id")
+        .and_then(|v| v.as_i64())
+        .map(|id| id.to_string())
+        .ok_or_else(|| "Upload response was missing the new asset id".to_string())
 }

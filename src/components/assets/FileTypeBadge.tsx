@@ -7,6 +7,7 @@ const TYPE_CLASS: Record<AssetFileType, string> = {
   CR3: "bg-emerald-500/10 text-emerald-500",
   JPG: "bg-violet-500/10 text-violet-500",
   PNG: "bg-violet-500/10 text-violet-500",
+  WEBP: "bg-violet-500/10 text-violet-500",
   MP4: "bg-pink-500/10 text-pink-500",
   ZIP: "bg-warning/10 text-warning",
   OTHER: "bg-white/5 text-muted-foreground",

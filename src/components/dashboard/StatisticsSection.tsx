@@ -9,7 +9,13 @@ function DeltaBadge({ delta }: { delta: string }) {
   );
 }
 
-export function StatisticsSection({ stats }: { stats: DashboardStatCards | null }) {
+export function StatisticsSection({
+  stats,
+  onAssetsEditedClick,
+}: {
+  stats: DashboardStatCards | null;
+  onAssetsEditedClick?: () => void;
+}) {
   if (!stats) {
     return (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -22,7 +28,10 @@ export function StatisticsSection({ stats }: { stats: DashboardStatCards | null 
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      <Card className="flex flex-col gap-2 p-3.5">
+      <Card
+        onClick={onAssetsEditedClick}
+        className="flex flex-col gap-2 p-3.5 transition-colors hover:bg-muted/50 cursor-pointer"
+      >
         <div className="flex items-center justify-between">
           <FileText className="size-3.5 text-muted-foreground" />
           <DeltaBadge delta={stats.assetsEdited.delta} />

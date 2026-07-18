@@ -25,6 +25,7 @@ function mimeToFileType(mime: string | null, fileName?: string | null): AssetFil
   if (m.includes("cr3")) return "CR3";
   if (m === "image/jpeg" || m === "image/jpg" || m.includes("jpeg")) return "JPG";
   if (m.includes("png")) return "PNG";
+  if (m.includes("webp")) return "WEBP";
   if (m.startsWith("video/")) return "MP4";
   if (m.includes("zip") || m.includes("compressed")) return "ZIP";
 
@@ -40,6 +41,7 @@ function mimeToFileType(mime: string | null, fileName?: string | null): AssetFil
     case "jpg":
     case "jpeg":         return "JPG";
     case "png":          return "PNG";
+    case "webp":         return "WEBP";
     case "mp4":
     case "mov":          return "MP4";
     case "zip":          return "ZIP";

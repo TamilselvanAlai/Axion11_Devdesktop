@@ -5,6 +5,10 @@ export interface AssetSyncCompletePayload {
   assetId: string;
   batchId: string;
   localPath: string;
+  /** The freshly created version's asset id — a save always lands on a brand-new row, so
+   *  consumers that want to show the new version (rather than just knowing a save happened)
+   *  need to switch to this id. */
+  newAssetId: string;
 }
 
 export interface OpenAssetResult {
@@ -47,7 +51,7 @@ export const localSyncService = {
       relativePath: params.relativePath,
       assetId: params.assetId,
       batchId: params.batchId,
-      uploadUrl: `${env.apiBaseUrl}/batches/upload/{batchId}`,
+      uploadUrl: `${env.apiBaseUrl}/batches/{batchId}/upload-sync`,
       authToken: token,
       mountRoot: params.mountRoot ?? null,
     });
