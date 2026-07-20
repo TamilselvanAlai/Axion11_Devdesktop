@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, Download, MoreHorizontal } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, Download, MoreHorizontal, Layers } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -21,6 +21,8 @@ import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
+import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
+import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { sortAssets } from "@/utils/assetSort";
@@ -54,12 +56,23 @@ function formatSize(mb: number) {
 }
 
 export function AssetsTable({ assets }: { assets: Asset[] }) {
-  const { sortKey, sortAsc, toggleSort, selectedAssetId, selectAsset, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
-    useAssetStore();
+  const {
+    sortKey,
+    sortAsc,
+    toggleSort,
+    selectedAssetId,
+    selectAsset,
+    filters,
+    multiSelectedIds,
+    toggleMultiSelect,
+    selectRange,
+    refetchAssets,
+  } = useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [compareAssetId, setCompareAssetId] = useState<string | null>(null);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -145,7 +158,12 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               <FileTypeBadge fileType={asset.fileType} />
             </TableCell>
             <TableCell className="text-muted-foreground">{formatSize(asset.sizeMb)}</TableCell>
-            <TableCell className="text-muted-foreground">{asset.version}</TableCell>
+            <TableCell className="text-muted-foreground">
+              <div className="flex items-center gap-1.5">
+                {asset.version}
+                {asset.established && <EstablishedBadge />}
+              </div>
+            </TableCell>
             <TableCell>
               <AssigneeBadge assignee={asset.assignee} />
             </TableCell>
@@ -157,6 +175,14 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               >
                 <Button variant="ghost" size="icon-sm" aria-label="Preview">
                   <Eye className="size-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label="View versions"
+                  onClick={() => setCompareAssetId(asset.id)}
+                >
+                  <Layers className="size-3.5" />
                 </Button>
                 <Button variant="ghost" size="icon-sm" aria-label="Download">
                   <Download className="size-3.5" />
@@ -189,6 +215,14 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
         hasPrev={previewIndex > 0}
         hasNext={previewIndex < rows.length - 1}
+      />
+    )}
+
+    {compareAssetId && (
+      <AssetVersionCompareModal
+        assetId={compareAssetId}
+        onClose={() => setCompareAssetId(null)}
+        onStatusChange={refetchAssets}
       />
     )}
     </>

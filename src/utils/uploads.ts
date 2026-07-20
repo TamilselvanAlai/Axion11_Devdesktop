@@ -8,6 +8,7 @@ const EXTENSION_MAP: Record<string, AssetFileType> = {
   jpg: "JPG",
   jpeg: "JPG",
   png: "PNG",
+  webp: "WEBP",
   mp4: "MP4",
   mov: "MP4",
   zip: "ZIP",
@@ -44,6 +45,7 @@ export function createAssetsFromFiles(files: FileList | File[], projectId: strin
       assignee,
       updatedAt: now,
       thumbnailColor: THUMBNAIL_COLORS[index % THUMBNAIL_COLORS.length],
+      established: false,
     };
   });
 }

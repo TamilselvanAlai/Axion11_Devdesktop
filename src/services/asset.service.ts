@@ -85,6 +85,7 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     // Prefer the generated preview (small, web-friendly JPEG) over the full-size original —
     // originals can be huge TIFF/PSD/RAW files that browsers can't even decode as <img>.
     thumbnailColor: dto.previewUrl || dto.publicUrl || THUMB_COLORS[dto.id % THUMB_COLORS.length],
+    established: dto.established,
   };
 }
 
@@ -213,6 +214,15 @@ export const assetService = {
     } catch {
       return null;
     }
+  },
+
+  /** Every version in this asset's chain (v1 first), works regardless of which version's id is
+   *  passed in — powers the version-compare view and the version strips in the table/panel. */
+  async getVersions(assetId: string): Promise<Asset[]> {
+    const { data } = await apiClient.get<ImageUploadApiDto[]>(
+      `/uploads/${encodeURIComponent(assetId)}/versions`
+    );
+    return data.map(toAsset);
   },
 
   /** QC actions — approve/reject the current version of this asset. */

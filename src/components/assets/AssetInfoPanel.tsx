@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil } from "lucide-react";
+import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil, Layers } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
+import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
+import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { formatDuration, formatRelativeTime } from "@/utils/formatters";
 import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
@@ -12,7 +14,7 @@ import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import { getStatusMeta } from "@/utils/assetStatus";
-import type { AssetDetail } from "@/types";
+import type { Asset, AssetDetail } from "@/types";
 
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
@@ -27,18 +29,32 @@ function formatDateTime(iso: string) {
 export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail; onStatusChange?: () => void }) {
   const status = getStatusMeta(detail.status, detail.version);
   const projectTree = useAssetStore((s) => s.projectTree);
+  const selectAsset = useAssetStore((s) => s.selectAsset);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
   const [localInfo, setLocalInfo] = useState<OpenAssetResult | null>(null);
+  const [versions, setVersions] = useState<Asset[] | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
   // Once a local copy exists, opening it again just reopens the same file in the OS default
   // app (no re-download) — surfaced as "Retouch" so it's clear no fresh download is happening.
   const isRetouch = isTauri && localInfo !== null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setVersions(null);
+    assetService.getVersions(detail.id).then((data) => {
+      if (!cancelled) setVersions(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.id]);
 
   // Picks up an already-downloaded local copy (and its first-opened timestamp) even when this
   // session isn't what triggered the download, so "Time Spent" shows up on revisit.
@@ -110,6 +126,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       toast.success(
         decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Asset published live."
       );
+      assetService.getVersions(detail.id).then(setVersions);
       onStatusChange?.();
     } catch {
       toast.error(`Failed to ${decision} asset.`);
@@ -143,6 +160,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
               <span className={`size-1.5 rounded-full ${status.dotClass}`} /> {status.label}
             </span>
             <span className="rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-foreground/70">{detail.version}</span>
+            {detail.established && <EstablishedBadge />}
             {detail.status !== "rejected" && (
               <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-muted-foreground">
                 <CheckCircle className="size-2.5 text-success" /> Checksum OK
@@ -154,6 +172,43 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
               </span>
             )}
           </div>
+
+          {versions && versions.length > 1 && (
+            <div>
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  Versions ({versions.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCompareOpen(true)}
+                  className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                >
+                  <Layers className="size-2.5" /> Compare
+                </button>
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                {versions.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => selectAsset(v.id)}
+                    title={`${v.version}${v.established ? " · VE" : ""}`}
+                    className={`relative size-10 shrink-0 overflow-hidden rounded-md ring-2 transition-colors ${
+                      v.id === detail.id ? "ring-primary" : "ring-transparent hover:ring-white/20"
+                    }`}
+                  >
+                    <AssetThumbnail color={v.thumbnailColor} className="size-full" rounded={false} />
+                    {v.established && (
+                      <span className="absolute right-0.5 top-0.5 flex size-2.5 items-center justify-center rounded-full bg-amber-500 text-[7px] font-bold text-black">
+                        E
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col gap-2.5">
             {rows.map((row) => (
@@ -225,6 +280,17 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
 
       {previewOpen && previewableUrl && (
         <AssetPreviewModal imageUrl={previewableUrl} filename={detail.filename} onClose={() => setPreviewOpen(false)} />
+      )}
+
+      {compareOpen && (
+        <AssetVersionCompareModal
+          assetId={detail.id}
+          onClose={() => setCompareOpen(false)}
+          onStatusChange={() => {
+            onStatusChange?.();
+            assetService.getVersions(detail.id).then(setVersions);
+          }}
+        />
       )}
     </div>
   );

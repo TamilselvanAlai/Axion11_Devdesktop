@@ -20,6 +20,10 @@ export interface Asset {
   assignee: AssetAssignee;
   updatedAt: string;
   thumbnailColor: string;
+  /** True for the one version in this asset's chain that's the current "VE" (established) —
+   *  the latest version an editor actually edited and saved, i.e. the original-format
+   *  (TIFF/PSD, layered) source to rework from. Independent of approval status. */
+  established: boolean;
 }
 
 export interface ProjectNode {
@@ -102,6 +106,7 @@ export interface ImageUploadApiDto {
   assignedToUserId: number | null;
   assignedToName: string | null;
   approvalStatus: string | null;
+  established: boolean;
 }
 
 export interface ProjectTreeApiNode {
