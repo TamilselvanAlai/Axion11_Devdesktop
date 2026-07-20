@@ -5,19 +5,6 @@ import { localSyncService } from "@/services/localSync.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
 
 const HEARTBEAT_INTERVAL_MS = 60_000;
-const CLOSE_SESSION_END_TIMEOUT_MS = 3_000;
-
-/** Bounds a promise so a slow/hung network call can never block something time-sensitive (here,
- *  the window actually closing) — resolves to undefined if `ms` elapses first. */
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | undefined> {
-  return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(undefined), ms);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      () => { clearTimeout(timer); resolve(undefined); }
-    );
-  });
-}
 
 /** Drives the real login-to-logout working-hours tracking used by the dashboard's stat cards.
  *  Mounted once, app-wide (see AppProviders):
@@ -77,11 +64,16 @@ export function useWorkSessionTracking() {
     (async () => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
-      const fn = await win.onCloseRequested(async (event) => {
-        event.preventDefault();
-        // Never let a slow/unreachable backend hold the window open — closing must always work.
-        await withTimeout(workSessionService.end().catch(() => undefined), CLOSE_SESSION_END_TIMEOUT_MS);
-        await win.destroy();
+      // Deliberately doesn't call event.preventDefault() — the window always closes immediately
+      // via Tauri's default handling, completely independent of whether this request finishes.
+      // This is best-effort only: if the window closes before it completes, the next login's
+      // stale-session recovery (WorkSessionService.startSession) closes the session out anyway,
+      // using its last heartbeat as the end time. A previous version of this intercepted the
+      // close event to await this call first (with a timeout as a safety net) — that pattern is
+      // inherently riskier than not intercepting at all, since it makes closing depend on JS
+      // execution completing, so it's not worth reintroducing even with a shorter timeout.
+      const fn = await win.onCloseRequested(() => {
+        workSessionService.end().catch(() => undefined);
       });
       if (cancelled) fn();
       else unlisten = fn;
