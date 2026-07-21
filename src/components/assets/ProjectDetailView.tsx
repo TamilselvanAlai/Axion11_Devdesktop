@@ -7,6 +7,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectView } from "@/hooks/useProjectView";
 import { useAssetStore } from "@/store";
+import { findAncestorPath } from "@/utils/assetPath";
 
 function FolderTableSkeleton() {
   return (
@@ -21,12 +22,13 @@ function FolderTableSkeleton() {
 export function ProjectDetailView({ projectId }: { projectId: string }) {
   const { node, isFolder, assets, folderSummary, status } = useProjectView(projectId);
   const viewMode = useAssetStore((state) => state.viewMode);
+  const projectTree = useAssetStore((state) => state.projectTree);
 
   if (!node) {
     return <ErrorState message="Project not found." />;
   }
 
-  const breadcrumbs = ["Projects", node.name];
+  const breadcrumbs = findAncestorPath(projectTree, projectId) ?? [node.name];
 
   if (isFolder) {
     return (

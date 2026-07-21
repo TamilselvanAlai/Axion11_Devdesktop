@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Eye, Download, MoreHorizontal, Layers } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -8,14 +8,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
@@ -61,7 +54,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
     sortAsc,
     toggleSort,
     selectedAssetId,
-    selectAsset,
+    selectAssetAndReveal,
     filters,
     multiSelectedIds,
     toggleMultiSelect,
@@ -125,7 +118,6 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               </button>
             </TableHead>
           ))}
-          <TableHead className="w-10" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -134,7 +126,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
             key={asset.id}
             data-asset-row={asset.id}
             className={cn("group cursor-pointer", (selectedAssetId === asset.id || multiSelectedIds.has(asset.id)) && "bg-muted")}
-            onClick={() => selectAsset(asset.id)}
+            onClick={() => selectAssetAndReveal(asset)}
           >
             <TableCell onClick={(e) => handleCheckboxClick(e, index, asset.id)}>
               <Checkbox checked={multiSelectedIds.has(asset.id)} aria-label={`Select ${asset.name}`} />
@@ -168,39 +160,6 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               <AssigneeBadge assignee={asset.assignee} />
             </TableCell>
             <TableCell className="text-muted-foreground">{formatDateTime(asset.updatedAt)}</TableCell>
-            <TableCell>
-              <div
-                className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Button variant="ghost" size="icon-sm" aria-label="Preview">
-                  <Eye className="size-3.5" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="View versions"
-                  onClick={() => setCompareAssetId(asset.id)}
-                >
-                  <Layers className="size-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon-sm" aria-label="Download">
-                  <Download className="size-3.5" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon-sm" aria-label="More actions">
-                      <MoreHorizontal className="size-3.5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>Rename</DropdownMenuItem>
-                    <DropdownMenuItem>Move to…</DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -215,6 +174,10 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
         hasPrev={previewIndex > 0}
         hasNext={previewIndex < rows.length - 1}
+        onReview={() => {
+          setCompareAssetId(rows[previewIndex].id);
+          setPreviewIndex(null);
+        }}
       />
     )}
 

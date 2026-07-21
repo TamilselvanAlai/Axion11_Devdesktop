@@ -57,6 +57,9 @@ export interface AssetComment {
   author: AssetAssignee;
   message: string;
   createdAt: string;
+  /** Baked-strokes PNG (transparent bg) for the marked area, if this comment was posted with
+   *  a pen-tool annotation — overlays exactly on top of the base image when the comment is clicked. */
+  annotationImageUrl: string | null;
 }
 
 export type AssetViewMode = "list" | "grid";
@@ -129,6 +132,12 @@ export interface CommentApiDto {
   authorName: string;
   createdAt: string;
   resolved: boolean;
+  annotationImageUrl?: string | null;
+}
+
+/** Response of POST /assets/{id}/comments — the whole asset detail, comments list included. */
+export interface AssetDetailWithCommentsApiDto {
+  comments?: CommentApiDto[] | null;
 }
 
 export interface BatchApiDto {

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { X, ChevronLeft, ChevronRight, ImageOff } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, ImageOff, Layers } from "lucide-react";
 
 interface AssetPreviewModalProps {
   imageUrl: string | null;
@@ -9,6 +9,8 @@ interface AssetPreviewModalProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
+  /** When provided, shows a "Review" button that opens the version-compare screen for this asset. */
+  onReview?: () => void;
 }
 
 export function AssetPreviewModal({
@@ -19,6 +21,7 @@ export function AssetPreviewModal({
   onNext,
   hasPrev = false,
   hasNext = false,
+  onReview,
 }: AssetPreviewModalProps) {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -35,14 +38,25 @@ export function AssetPreviewModal({
       className="fixed inset-0 z-100 flex items-center justify-center bg-black/90 p-8"
       onClick={onClose}
     >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close preview"
-        className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
-      >
-        <X className="size-5" />
-      </button>
+      <div className="absolute right-4 top-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        {onReview && (
+          <button
+            type="button"
+            onClick={onReview}
+            className="flex items-center gap-1.5 rounded-full bg-primary px-3.5 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent"
+          >
+            <Layers className="size-3.5" /> Review
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close preview"
+          className="flex size-10 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+        >
+          <X className="size-5" />
+        </button>
+      </div>
 
       <p className="absolute left-4 top-4 max-w-[70%] truncate text-sm text-white/70">{filename}</p>
 

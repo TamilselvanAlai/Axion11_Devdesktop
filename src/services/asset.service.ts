@@ -2,6 +2,7 @@ import type {
   Asset,
   AssetComment,
   AssetDetail,
+  AssetDetailWithCommentsApiDto,
   AssetFileType,
   AssetScope,
   AssetStatus,
@@ -110,7 +111,22 @@ function toAssetComment(dto: CommentApiDto, assetId: string): AssetComment {
     author: { name: dto.authorName, initials: getInitials(dto.authorName) },
     message: dto.text,
     createdAt: dto.createdAt,
+    annotationImageUrl: dto.annotationImageUrl ?? null,
   };
+}
+
+/** Collapses every version of the same upload down to just its latest version — the list view
+ *  shows one row per asset; the full version chain is still available via the Compare view. */
+function latestVersionsOnly(items: ImageUploadApiDto[]): ImageUploadApiDto[] {
+  const latestByFamily = new Map<number, ImageUploadApiDto>();
+  for (const item of items) {
+    const familyId = item.originalUploadId ?? item.id;
+    const current = latestByFamily.get(familyId);
+    if (!current || (item.versionNumber ?? 1) > (current.versionNumber ?? 1)) {
+      latestByFamily.set(familyId, item);
+    }
+  }
+  return Array.from(latestByFamily.values());
 }
 
 function toProjectNode(node: ProjectTreeApiNode): ProjectNode {
@@ -148,21 +164,21 @@ export const assetService = {
     const { data } = await apiClient.get<ImageUploadApiDto[]>(
       `/uploads/search-by-name?q=${encodeURIComponent(query)}`
     );
-    return data.map(toAsset);
+    return latestVersionsOnly(data).map(toAsset);
   },
 
   async listAssets(scope: AssetScope): Promise<Asset[]> {
     if (scope === "recent") {
       const { data } = await apiClient.get<ImageUploadApiDto[]>("/audit/recent-assets?days=7");
-      return data.map(toAsset);
+      return latestVersionsOnly(data).map(toAsset);
     }
     if (scope === "transfers") {
       const { data } = await apiClient.get<ImageUploadApiDto[]>("/audit/transfers?days=7");
-      return data.map(toAsset);
+      return latestVersionsOnly(data).map(toAsset);
     }
     if (scope === "all") {
       const { data } = await apiClient.get<ImageUploadApiDto[]>("/uploads");
-      return data.map(toAsset);
+      return latestVersionsOnly(data).map(toAsset);
     }
 
     // Tree node ids are prefixed ("p-1" for projects, "b-5" for batches/folders).
@@ -170,14 +186,14 @@ export const assetService = {
     if (scope.projectId.startsWith("b-")) {
       const batchId = scope.projectId.slice(2);
       const { data } = await apiClient.get<BatchWithUploadsApiDto>(`/batches/${batchId}`);
-      return (data.imageUploads ?? []).map(toAsset);
+      return latestVersionsOnly(data.imageUploads ?? []).map(toAsset);
     }
 
     const numericProjectId = scope.projectId.startsWith("p-") ? scope.projectId.slice(2) : scope.projectId;
     const { data } = await apiClient.get<ImageUploadApiDto[]>(
       `/uploads?projectId=${encodeURIComponent(numericProjectId)}`
     );
-    return data.map(toAsset);
+    return latestVersionsOnly(data).map(toAsset);
   },
 
   async getFolderSummary(nodeId: string): Promise<ProjectSummary[]> {
@@ -247,12 +263,25 @@ export const assetService = {
     return data.map((c) => toAssetComment(c, assetId));
   },
 
-  async addComment(assetId: string, message: string): Promise<AssetComment> {
-    const { data } = await apiClient.post<CommentApiDto>(
-      `/uploads/${encodeURIComponent(assetId)}/comments`,
-      { text: message }
+  /** Posts a comment, optionally with a pen-tool annotation baked into a transparent PNG
+   *  (image) plus its mark center (x/y, natural-image pixels). Returns the asset's full,
+   *  now-current comment list — the annotation-capable endpoint replies with the whole
+   *  asset detail rather than just the new comment. */
+  async addComment(
+    assetId: string,
+    message: string,
+    annotation?: { image: string; x: number; y: number }
+  ): Promise<AssetComment[]> {
+    const { data } = await apiClient.post<AssetDetailWithCommentsApiDto>(
+      `/assets/${encodeURIComponent(assetId)}/comments`,
+      {
+        text: message,
+        annotationImage: annotation?.image,
+        markX: annotation?.x,
+        markY: annotation?.y,
+      }
     );
-    return toAssetComment(data, assetId);
+    return (data.comments ?? []).map((c) => toAssetComment(c, assetId));
   },
 
   /** Logs a download without transferring the file — for flows that fetch the file directly

@@ -24,8 +24,6 @@ export function useProjectView(projectId: string) {
 
   useEffect(() => {
     if (!node) return;
-    // Clear the previous node's list synchronously so the skeleton shows immediately —
-    // otherwise stale content sits frozen on screen for the whole fetch, then jumps.
     resetForNavigation();
 
     if (node.children?.length) {
@@ -33,7 +31,12 @@ export function useProjectView(projectId: string) {
     } else {
       assetService.listAssets({ projectId }).then(setAssets);
     }
-  }, [node, projectId, setAssets, setFolderSummary, resetForNavigation]);
+    // Keyed on node.id/isFolder (not `node` itself) — `node` is a fresh object reference every
+    // time the project tree refetches (e.g. on window focus), even when nothing about the
+    // currently-viewed node actually changed. Keying on it would re-trigger this fetch on every
+    // background tree refresh, flashing the list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id, isFolder, projectId, setAssets, setFolderSummary, resetForNavigation]);
 
   // A locally-edited file just got auto-uploaded as a new version — refresh the list so
   // it shows up (updated size/version) without the user having to navigate away and back.
@@ -47,7 +50,8 @@ export function useProjectView(projectId: string) {
     }).then((fn) => { unlisten = fn; });
 
     return () => unlisten?.();
-  }, [node, projectId, setAssets]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id, isFolder, projectId, setAssets]);
 
   return { node, isFolder, assets, folderSummary, status };
 }

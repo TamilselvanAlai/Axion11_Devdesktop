@@ -8,10 +8,10 @@ import { ROUTES } from "@/constants/routes";
 function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
   const navigate = useNavigate();
   const { projectId: activeId } = useParams();
-  const { expandedIds, toggleExpanded } = useAssetStore();
+  const { expandedIds, toggleExpanded, selectedAssetBatchId } = useAssetStore();
   const hasChildren = Boolean(node.children?.length);
   const isExpanded = expandedIds.has(node.id);
-  const isActive = activeId === node.id;
+  const isActive = activeId === node.id || selectedAssetBatchId === node.id;
 
   return (
     <div>

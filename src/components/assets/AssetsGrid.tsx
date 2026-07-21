@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
+import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
@@ -31,12 +32,13 @@ function formatSize(sizeMb: number) {
 }
 
 export function AssetsGrid({ assets }: { assets: Asset[] }) {
-  const { selectedAssetId, selectAsset, sortKey, sortAsc, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
+  const { selectedAssetId, selectAssetAndReveal, sortKey, sortAsc, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
     useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [compareAssetId, setCompareAssetId] = useState<string | null>(null);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -70,7 +72,7 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
             "group cursor-pointer gap-0 overflow-hidden p-0 ring-1 ring-foreground/10 transition-colors",
             (selectedAssetId === asset.id || checked) && "ring-2 ring-primary"
           )}
-          onClick={() => selectAsset(asset.id)}
+          onClick={() => selectAssetAndReveal(asset)}
         >
           <div className="relative h-40 w-full shrink-0" onDoubleClick={(e) => { e.stopPropagation(); setPreviewIndex(index); }}>
             <AssetThumbnail color={asset.thumbnailColor} className="size-full" rounded={false} />
@@ -129,7 +131,15 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
           onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
           hasPrev={previewIndex > 0}
           hasNext={previewIndex < rows.length - 1}
+          onReview={() => {
+            setCompareAssetId(rows[previewIndex].id);
+            setPreviewIndex(null);
+          }}
         />
+      )}
+
+      {compareAssetId && (
+        <AssetVersionCompareModal assetId={compareAssetId} onClose={() => setCompareAssetId(null)} />
       )}
     </div>
   );

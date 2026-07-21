@@ -1,17 +1,46 @@
 import { useState } from "react";
-import { Send } from "lucide-react";
+import { Send, PenTool } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAssetComments } from "@/hooks/useAssetComments";
 import { formatRelativeTime } from "@/utils/formatters";
+import { cn } from "@/lib/utils";
+import type { AssetComment } from "@/types";
 
-export function AssetCommentsPanel({ assetId }: { assetId: string }) {
+interface AssetCommentsPanelProps {
+  assetId: string;
+  /** Reads the pen-tool markup currently drawn (if any), so it can be attached to the next comment. */
+  getAnnotation?: () => { image: string; x: number; y: number } | null;
+  /** Called right after a comment carrying an annotation is saved, so the drawing can be cleared. */
+  onAnnotationSubmitted?: () => void;
+  /** Called whenever the "marked area" overlay should change — null hides it. */
+  onActiveAnnotationChange?: (url: string | null) => void;
+}
+
+export function AssetCommentsPanel({
+  assetId,
+  getAnnotation,
+  onAnnotationSubmitted,
+  onActiveAnnotationChange,
+}: AssetCommentsPanelProps) {
   const { comments, status, addComment } = useAssetComments(assetId);
   const [draft, setDraft] = useState("");
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!draft.trim()) return;
-    addComment(draft);
+    const annotation = getAnnotation?.() ?? undefined;
     setDraft("");
+    await addComment(draft, annotation);
+    if (annotation) onAnnotationSubmitted?.();
+  }
+
+  function handleCommentClick(comment: AssetComment) {
+    if (!comment.annotationImageUrl) return;
+    setActiveCommentId((prev) => {
+      const next = prev === comment.id ? null : comment.id;
+      onActiveAnnotationChange?.(next ? comment.annotationImageUrl : null);
+      return next;
+    });
   }
 
   return (
@@ -32,7 +61,30 @@ export function AssetCommentsPanel({ assetId }: { assetId: string }) {
                   <span className="text-sm font-medium">{comment.author.name}</span>
                   <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
                 </div>
-                <p className="text-xs leading-relaxed text-foreground/70">{comment.message}</p>
+                <p
+                  onClick={() => handleCommentClick(comment)}
+                  title={
+                    comment.annotationImageUrl
+                      ? activeCommentId === comment.id
+                        ? "Click to hide marked area"
+                        : "Click to view marked area"
+                      : undefined
+                  }
+                  className={cn(
+                    "text-xs leading-relaxed text-foreground/70",
+                    comment.annotationImageUrl && "cursor-pointer transition-colors hover:text-foreground"
+                  )}
+                >
+                  {comment.annotationImageUrl && (
+                    <PenTool
+                      className={cn(
+                        "mr-1 inline size-2.5",
+                        activeCommentId === comment.id ? "text-primary" : "text-muted-foreground"
+                      )}
+                    />
+                  )}
+                  {comment.message}
+                </p>
               </div>
             </div>
           ))

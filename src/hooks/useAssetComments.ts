@@ -27,10 +27,10 @@ export function useAssetComments(assetId: string | null) {
     };
   }, [assetId]);
 
-  async function addComment(message: string) {
+  async function addComment(message: string, annotation?: { image: string; x: number; y: number }) {
     if (!assetId || !message.trim()) return;
-    const comment = await assetService.addComment(assetId, message.trim());
-    setComments((prev) => [...prev, comment]);
+    const refreshed = await assetService.addComment(assetId, message.trim(), annotation);
+    setComments(refreshed);
   }
 
   return { comments, status, addComment };

@@ -214,7 +214,12 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
             {rows.map((row) => (
               <div key={row.label} className="flex items-start justify-between gap-2">
                 <span className="w-16 shrink-0 text-xs text-muted-foreground">{row.label}</span>
-                <span className="truncate text-right font-mono text-xs leading-relaxed text-foreground/70">{row.value}</span>
+                <span
+                  title={String(row.value)}
+                  className="truncate text-right font-mono text-xs leading-relaxed text-foreground/70"
+                >
+                  {row.value}
+                </span>
               </div>
             ))}
           </div>
@@ -279,7 +284,15 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       )}
 
       {previewOpen && previewableUrl && (
-        <AssetPreviewModal imageUrl={previewableUrl} filename={detail.filename} onClose={() => setPreviewOpen(false)} />
+        <AssetPreviewModal
+          imageUrl={previewableUrl}
+          filename={detail.filename}
+          onClose={() => setPreviewOpen(false)}
+          onReview={() => {
+            setPreviewOpen(false);
+            setCompareOpen(true);
+          }}
+        />
       )}
 
       {compareOpen && (

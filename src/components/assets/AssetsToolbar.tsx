@@ -13,7 +13,6 @@ import { useAssetStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import { createAssetsFromFiles } from "@/utils/uploads";
 import { assetService } from "@/services/asset.service";
-import { WORKSPACE_NAME } from "@/constants/workspace";
 import { hasActiveFilters } from "@/utils/assetFilters";
 import type { Asset, AssetSortKey } from "@/types";
 
@@ -79,10 +78,9 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, asset
       />
 
       <div className="mr-2 flex items-center gap-1 text-xs text-muted-foreground">
-        <span>{WORKSPACE_NAME}</span>
         {breadcrumbs.map((crumb, i) => (
           <Fragment key={crumb}>
-            <ChevronRight className="size-2.5" />
+            {i > 0 && <ChevronRight className="size-2.5" />}
             <span className={i === breadcrumbs.length - 1 ? "font-medium text-foreground" : ""}>{crumb}</span>
           </Fragment>
         ))}

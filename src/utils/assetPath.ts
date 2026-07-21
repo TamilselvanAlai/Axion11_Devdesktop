@@ -1,6 +1,8 @@
 import type { ProjectNode } from "@/types";
 
-function findAncestorPath(nodes: ProjectNode[], targetId: string, trail: string[] = []): string[] | null {
+/** The names of every ancestor folder (project → … → targetId), targetId included — the full
+ *  breadcrumb trail for a node, e.g. ["Test01", "B3", "002", "SUBB001"]. */
+export function findAncestorPath(nodes: ProjectNode[], targetId: string, trail: string[] = []): string[] | null {
   for (const node of nodes) {
     const nextTrail = [...trail, node.name];
     if (node.id === targetId) return nextTrail;

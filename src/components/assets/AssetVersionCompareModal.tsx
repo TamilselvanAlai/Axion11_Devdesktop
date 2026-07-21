@@ -1,14 +1,32 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { X, Download, ImageOff, Check, Loader2, Rocket } from "lucide-react";
+import {
+  X,
+  Download,
+  ImageOff,
+  Check,
+  Loader2,
+  Rocket,
+  PenTool,
+  CircleDot,
+  Image as ImageIcon,
+  Columns2,
+  SplitSquareHorizontal,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { AssetCommentsPanel } from "@/components/assets/AssetCommentsPanel";
+import { AnnotationCanvas, type AnnotationCanvasHandle } from "@/components/assets/AnnotationCanvas";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { getStatusMeta } from "@/utils/assetStatus";
 import { formatRelativeTime } from "@/utils/formatters";
 import { isUrl } from "@/utils/helpers";
 import { assetService } from "@/services/asset.service";
 import { useUser } from "@/hooks/useUser";
+import { cn } from "@/lib/utils";
 import type { Asset } from "@/types";
+
+type CompareLayout = "individual" | "side-by-side" | "slider";
 
 interface AssetVersionCompareModalProps {
   /** Any version's id in the chain — the full chain is resolved from this. */
@@ -18,16 +36,58 @@ interface AssetVersionCompareModalProps {
   onStatusChange?: () => void;
 }
 
-function VersionImage({ version }: { version: Asset | undefined }) {
-  const url = version && isUrl(version.thumbnailColor) ? version.thumbnailColor : null;
+const WIDTH_PRESETS = [2, 4, 8, 12, 16];
+
+function LineWidthPicker({ width, onChange }: { width: number; onChange: (w: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
   return (
-    <div className="flex flex-1 items-center justify-center overflow-hidden bg-black/40 p-4">
-      {url ? (
-        <img src={url} alt={version?.name ?? ""} className="max-h-full max-w-full rounded-md object-contain shadow-2xl" />
-      ) : (
-        <div className="flex flex-col items-center gap-2 text-white/40">
-          <ImageOff className="size-8" />
-          <p className="text-xs">No preview available</p>
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Line size"
+        className="flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10"
+      >
+        <CircleDot className="size-3" style={{ transform: `scale(${0.6 + Math.min(width, 16) / 20})` }} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-border bg-popover p-3 shadow-xl">
+          <input
+            type="range"
+            min={1}
+            max={20}
+            step={1}
+            value={width}
+            onChange={(e) => onChange(Number(e.target.value))}
+            className="w-full"
+          />
+          <div className="mt-2 flex items-center justify-between">
+            {WIDTH_PRESETS.map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => onChange(w)}
+                aria-label={`Line size ${w}`}
+                className={cn(
+                  "flex size-6 items-center justify-center rounded-md transition-colors hover:bg-white/10",
+                  width === w && "bg-primary/20"
+                )}
+              >
+                <span className="rounded-full bg-current" style={{ width: Math.min(w, 14), height: Math.min(w, 14) }} />
+              </button>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -68,8 +128,49 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
   const [leftId, setLeftId] = useState<string>(assetId);
   const [rightId, setRightId] = useState<string>(assetId);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
+  const [drawingActive, setDrawingActive] = useState(false);
+  const [drawingWidth, setDrawingWidth] = useState(4);
+  const [compareLayout, setCompareLayout] = useState<CompareLayout>("side-by-side");
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [activeAnnotationUrl, setActiveAnnotationUrl] = useState<string | null>(null);
+  const rightCanvasRef = useRef<AnnotationCanvasHandle>(null);
+  const sliderContainerRef = useRef<HTMLDivElement>(null);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
+
+  // Drawing only applies to the side-by-side panes — slider mode composites a single clipped
+  // image, so there's no per-image canvas to draw on there.
+  useEffect(() => {
+    if (compareLayout === "slider") setDrawingActive(false);
+  }, [compareLayout]);
+
+  // A markup overlay is tied to whichever version it was drawn on — don't leave it showing
+  // once the user switches to a different version.
+  useEffect(() => {
+    setActiveAnnotationUrl(null);
+  }, [rightId]);
+
+  const updateSliderFromClientX = useCallback((clientX: number) => {
+    const el = sliderContainerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const pct = ((clientX - rect.left) / rect.width) * 100;
+    setSliderPosition(Math.min(100, Math.max(0, pct)));
+  }, []);
+
+  function handleSliderDragStart(e: React.MouseEvent) {
+    e.preventDefault();
+    updateSliderFromClientX(e.clientX);
+    function handleMove(moveEvent: MouseEvent) {
+      updateSliderFromClientX(moveEvent.clientX);
+    }
+    function handleUp() {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    }
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +241,22 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setDrawingActive((a) => !a)}
+            disabled={compareLayout === "slider"}
+            aria-label="Draw (auto-shapes)"
+            title={compareLayout === "slider" ? "Switch to side-by-side to draw" : "Draw (auto-shapes)"}
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+              drawingActive
+                ? "border-primary/30 bg-primary/10 text-primary"
+                : "border-border bg-white/5 hover:bg-white/10"
+            )}
+          >
+            <PenTool className="size-3" /> Pen
+          </button>
+          {compareLayout !== "slider" && <LineWidthPicker width={drawingWidth} onChange={setDrawingWidth} />}
+          <button
+            type="button"
             onClick={handleDownload}
             disabled={!right}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -159,7 +276,7 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
-          {versions && (
+          {versions && compareLayout !== "individual" && (
             <div className="flex shrink-0">
               <div className="flex-1">
                 <VersionSelect versions={versions} value={leftId} exclude={rightId} onChange={setLeftId} />
@@ -169,18 +286,114 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
               </div>
             </div>
           )}
-          <div className="flex min-h-0 flex-1">
-            <VersionImage version={left} />
-            <div className="w-px shrink-0 bg-white/10" />
-            <VersionImage version={right} />
-          </div>
+          {compareLayout === "individual" ? (
+            <AnnotationCanvas
+              ref={rightCanvasRef}
+              imageUrl={right && isUrl(right.thumbnailColor) ? right.thumbnailColor : null}
+              alt={right?.name ?? ""}
+              active={drawingActive}
+              lineWidth={drawingWidth}
+              overlayImageUrl={activeAnnotationUrl}
+            />
+          ) : compareLayout === "side-by-side" ? (
+            <div className="flex min-h-0 flex-1">
+              <AnnotationCanvas
+                imageUrl={left && isUrl(left.thumbnailColor) ? left.thumbnailColor : null}
+                alt={left?.name ?? ""}
+                active={drawingActive}
+                lineWidth={drawingWidth}
+              />
+              <div className="w-px shrink-0 bg-white/10" />
+              <AnnotationCanvas
+                ref={rightCanvasRef}
+                imageUrl={right && isUrl(right.thumbnailColor) ? right.thumbnailColor : null}
+                alt={right?.name ?? ""}
+                active={drawingActive}
+                lineWidth={drawingWidth}
+                overlayImageUrl={activeAnnotationUrl}
+              />
+            </div>
+          ) : (
+            <div
+              ref={sliderContainerRef}
+              onMouseDown={handleSliderDragStart}
+              className="relative min-h-0 flex-1 cursor-ew-resize overflow-hidden bg-black/40"
+            >
+              {right && isUrl(right.thumbnailColor) ? (
+                <img
+                  src={right.thumbnailColor}
+                  alt={right.name}
+                  className="pointer-events-none absolute inset-0 size-full object-contain p-4"
+                />
+              ) : (
+                <div className="flex size-full flex-col items-center justify-center gap-2 text-white/40">
+                  <ImageOff className="size-8" />
+                  <p className="text-xs">No preview available</p>
+                </div>
+              )}
+              {left && isUrl(left.thumbnailColor) && (
+                <img
+                  src={left.thumbnailColor}
+                  alt={left.name}
+                  className="pointer-events-none absolute inset-0 size-full object-contain p-4"
+                  style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+                />
+              )}
+              <div className="absolute inset-y-0 w-0.5 bg-white" style={{ left: `${sliderPosition}%` }}>
+                <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-full bg-white px-1 py-1 shadow-lg">
+                  <ChevronLeft className="size-3 text-black" />
+                  <ChevronRight className="size-3 text-black" />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="flex w-80 shrink-0 flex-col border-l border-border bg-muted">
           <div className="shrink-0 border-b border-border p-3">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Versions
-            </p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Versions
+              </p>
+              <div className="flex items-center gap-1 rounded-md border border-border bg-white/5 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setCompareLayout("individual")}
+                  aria-label="Individual view"
+                  title="Individual view"
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded transition-colors",
+                    compareLayout === "individual" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <ImageIcon className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompareLayout("side-by-side")}
+                  aria-label="Side-by-side view"
+                  title="Side-by-side view"
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded transition-colors",
+                    compareLayout === "side-by-side" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Columns2 className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCompareLayout("slider")}
+                  aria-label="Slider view"
+                  title="Slider view"
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded transition-colors",
+                    compareLayout === "slider" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <SplitSquareHorizontal className="size-3.5" />
+                </button>
+              </div>
+            </div>
             <div className="grid grid-cols-4 gap-1.5">
               {versions?.map((v) => (
                 <button
@@ -217,7 +430,22 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
           </div>
 
           <div className="min-h-0 flex-1">
-            {right && <AssetCommentsPanel assetId={right.id} />}
+            {right && (
+              <AssetCommentsPanel
+                key={right.id}
+                assetId={right.id}
+                getAnnotation={() => {
+                  const canvas = rightCanvasRef.current;
+                  if (!canvas || !canvas.hasStrokes()) return null;
+                  const image = canvas.exportAnnotationImage();
+                  const center = canvas.getMarkCenter();
+                  if (!image || !center) return null;
+                  return { image, x: center.x, y: center.y };
+                }}
+                onAnnotationSubmitted={() => rightCanvasRef.current?.clear()}
+                onActiveAnnotationChange={setActiveAnnotationUrl}
+              />
+            )}
           </div>
 
           {isQc && right && (
