@@ -20,7 +20,7 @@ export function RightPanel() {
   const { snapshot } = useDashboard();
   const selectedAssetId = useAssetStore((state) => state.selectedAssetId);
   const refetchAssets = useAssetStore((state) => state.refetchAssets);
-  const { detail, status, refetch } = useAssetDetail(selectedAssetId);
+  const { detail, refetch } = useAssetDetail(selectedAssetId);
 
   function handleStatusChange() {
     refetch();
@@ -78,14 +78,18 @@ export function RightPanel() {
                 <p className="text-xs text-muted-foreground">Select an asset to view details</p>
               </div>
             ) : tab === "info" ? (
-              status === "loading" || !detail ? (
+              // Keyed only on `!detail` (not `status`) — while switching between an asset's own
+              // versions, the previous version's detail stays on screen until the new one
+              // resolves, then the keyed remount below swaps straight to it. Gating on
+              // `status === "loading"` too would flash the skeleton on every version switch.
+              !detail ? (
                 <div className="flex flex-col gap-3 p-4">
                   <Skeleton className="h-36 rounded-lg" />
                   <Skeleton className="h-4 w-2/3 rounded" />
                   <Skeleton className="h-4 w-1/2 rounded" />
                 </div>
               ) : (
-                <AssetInfoPanel detail={detail} onStatusChange={handleStatusChange} />
+                <AssetInfoPanel key={detail.id} detail={detail} onStatusChange={handleStatusChange} />
               )
             ) : tab === "comments" ? (
               <AssetCommentsPanel assetId={selectedAssetId!} />

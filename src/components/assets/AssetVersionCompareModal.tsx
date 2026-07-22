@@ -133,8 +133,10 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
   const [compareLayout, setCompareLayout] = useState<CompareLayout>("side-by-side");
   const [sliderPosition, setSliderPosition] = useState(50);
   const [activeAnnotationUrl, setActiveAnnotationUrl] = useState<string | null>(null);
+  const [sliderImgBox, setSliderImgBox] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const rightCanvasRef = useRef<AnnotationCanvasHandle>(null);
   const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const sliderImgRef = useRef<HTMLImageElement>(null);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
 
@@ -150,13 +152,48 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
     setActiveAnnotationUrl(null);
   }, [rightId]);
 
-  const updateSliderFromClientX = useCallback((clientX: number) => {
-    const el = sliderContainerRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const pct = ((clientX - rect.left) / rect.width) * 100;
-    setSliderPosition(Math.min(100, Math.max(0, pct)));
+  // The base image is object-contain'd inside a taller/wider container, so its actual rendered
+  // rect (what the user can see) is usually smaller than the container — measure it so the
+  // divider and the clipped overlay stay confined to the visible photo, not the whole pane.
+  const updateSliderImgBox = useCallback(() => {
+    const img = sliderImgRef.current;
+    const container = sliderContainerRef.current;
+    if (!img || !container) return;
+    const imgRect = img.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    if (imgRect.width === 0 || imgRect.height === 0) return;
+    setSliderImgBox({
+      left: imgRect.left - containerRect.left,
+      top: imgRect.top - containerRect.top,
+      width: imgRect.width,
+      height: imgRect.height,
+    });
   }, []);
+
+  useEffect(() => {
+    if (compareLayout !== "slider") return;
+    const container = sliderContainerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(updateSliderImgBox);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [compareLayout, updateSliderImgBox]);
+
+  useEffect(() => {
+    setSliderImgBox({ left: 0, top: 0, width: 0, height: 0 });
+  }, [rightId]);
+
+  const updateSliderFromClientX = useCallback(
+    (clientX: number) => {
+      const el = sliderContainerRef.current;
+      if (!el || sliderImgBox.width === 0) return;
+      const rect = el.getBoundingClientRect();
+      // Percentage across the actual visible image, not the (often letterboxed) container.
+      const pct = ((clientX - rect.left - sliderImgBox.left) / sliderImgBox.width) * 100;
+      setSliderPosition(Math.min(100, Math.max(0, pct)));
+    },
+    [sliderImgBox.left, sliderImgBox.width]
+  );
 
   function handleSliderDragStart(e: React.MouseEvent) {
     e.preventDefault();
@@ -317,34 +354,51 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
             <div
               ref={sliderContainerRef}
               onMouseDown={handleSliderDragStart}
-              className="relative min-h-0 flex-1 cursor-ew-resize overflow-hidden bg-black/40"
+              className="relative flex min-h-0 flex-1 cursor-ew-resize items-center justify-center overflow-hidden bg-black/40 p-4"
             >
               {right && isUrl(right.thumbnailColor) ? (
                 <img
+                  ref={sliderImgRef}
                   src={right.thumbnailColor}
                   alt={right.name}
-                  className="pointer-events-none absolute inset-0 size-full object-contain p-4"
+                  className="pointer-events-none max-h-full max-w-full rounded-md object-contain shadow-2xl"
+                  onLoad={updateSliderImgBox}
                 />
               ) : (
-                <div className="flex size-full flex-col items-center justify-center gap-2 text-white/40">
+                <div className="flex flex-col items-center gap-2 text-white/40">
                   <ImageOff className="size-8" />
                   <p className="text-xs">No preview available</p>
                 </div>
               )}
-              {left && isUrl(left.thumbnailColor) && (
+              {left && isUrl(left.thumbnailColor) && sliderImgBox.width > 0 && (
                 <img
                   src={left.thumbnailColor}
                   alt={left.name}
-                  className="pointer-events-none absolute inset-0 size-full object-contain p-4"
-                  style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+                  className="pointer-events-none absolute rounded-md object-contain shadow-2xl"
+                  style={{
+                    left: sliderImgBox.left,
+                    top: sliderImgBox.top,
+                    width: sliderImgBox.width,
+                    height: sliderImgBox.height,
+                    clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
+                  }}
                 />
               )}
-              <div className="absolute inset-y-0 w-0.5 bg-white" style={{ left: `${sliderPosition}%` }}>
+              {sliderImgBox.width > 0 && (
+              <div
+                className="absolute w-0.5 bg-white"
+                style={{
+                  top: sliderImgBox.top,
+                  height: sliderImgBox.height,
+                  left: sliderImgBox.left + (sliderPosition / 100) * sliderImgBox.width,
+                }}
+              >
                 <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-full bg-white px-1 py-1 shadow-lg">
                   <ChevronLeft className="size-3 text-black" />
                   <ChevronRight className="size-3 text-black" />
                 </div>
               </div>
+              )}
             </div>
           )}
         </div>
@@ -400,12 +454,12 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
                   key={v.id}
                   type="button"
                   onClick={() => setRightId(v.id)}
-                  className={`relative aspect-square overflow-hidden rounded-md ring-2 transition-colors ${
+                  className={`relative aspect-square overflow-hidden rounded-md bg-black/40 ring-2 transition-colors ${
                     v.id === rightId ? "ring-primary" : "ring-transparent hover:ring-white/20"
                   }`}
                 >
                   {isUrl(v.thumbnailColor) ? (
-                    <img src={v.thumbnailColor} alt={v.version} className="size-full object-cover" />
+                    <img src={v.thumbnailColor} alt={v.version} className="size-full object-contain" />
                   ) : (
                     <div className="flex size-full items-center justify-center bg-white/5">
                       <ImageOff className="size-3 text-white/30" />

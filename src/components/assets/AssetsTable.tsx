@@ -165,7 +165,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
       </TableBody>
     </Table>
 
-    {previewIndex !== null && rows[previewIndex] && (
+    {previewIndex !== null && rows[previewIndex] && !compareAssetId && (
       <AssetPreviewModal
         imageUrl={isUrl(rows[previewIndex].thumbnailColor) ? rows[previewIndex].thumbnailColor : null}
         filename={rows[previewIndex].name}
@@ -174,10 +174,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
         hasPrev={previewIndex > 0}
         hasNext={previewIndex < rows.length - 1}
-        onReview={() => {
-          setCompareAssetId(rows[previewIndex].id);
-          setPreviewIndex(null);
-        }}
+        onReview={() => setCompareAssetId(rows[previewIndex].id)}
       />
     )}
 

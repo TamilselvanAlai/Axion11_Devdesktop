@@ -25,6 +25,9 @@ interface AssetStoreState {
    *  list without needing to know or re-derive the scope themselves. */
   currentScope: AssetScope | null;
   setProjectTree: (tree: ProjectNode[]) => void;
+  /** Re-fetches the whole sidebar project tree — call after anything that changes its shape
+   *  (e.g. a new batch/sub-folder created via drag-and-drop upload). */
+  refetchProjectTree: () => Promise<void>;
   setAssets: (assets: Asset[]) => void;
   setCurrentScope: (scope: AssetScope) => void;
   /** Re-fetches the asset list for whatever scope is currently displayed. No-op if nothing
@@ -66,6 +69,10 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   multiSelectedIds: new Set(),
   currentScope: null,
   setProjectTree: (projectTree) => set({ projectTree }),
+  refetchProjectTree: async () => {
+    const projectTree = await assetService.getProjectTree();
+    set({ projectTree });
+  },
   setAssets: (assets) => set({ assets, status: "success" }),
   setCurrentScope: (currentScope) => set({ currentScope }),
   refetchAssets: async () => {

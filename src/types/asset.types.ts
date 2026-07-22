@@ -29,6 +29,8 @@ export interface Asset {
 export interface ProjectNode {
   id: string;
   name: string;
+  /** Root project's tree id (e.g. "p-42") — null for project-type nodes, since they are the project. */
+  projectId: string | null;
   children?: ProjectNode[];
 }
 

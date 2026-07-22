@@ -48,7 +48,7 @@ export function AssetThumbnail({
         <img
           src={color}
           alt=""
-          className={`h-full w-full object-cover transition-opacity duration-200 ${
+          className={`h-full w-full object-contain transition-opacity duration-200 ${
             state === "loaded" ? "opacity-100" : "opacity-0"
           }`}
           loading="lazy"

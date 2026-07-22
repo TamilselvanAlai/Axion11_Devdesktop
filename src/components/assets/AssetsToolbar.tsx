@@ -10,8 +10,8 @@ import {
 import { CloudFileBrowserDialog } from "@/components/assets/CloudFileBrowserDialog";
 import { AssetsFilterBar } from "@/components/assets/AssetsFilterBar";
 import { useAssetStore } from "@/store";
-import { useUser } from "@/hooks/useUser";
-import { createAssetsFromFiles } from "@/utils/uploads";
+import { useFileUpload } from "@/hooks/useFileUpload";
+import { toUploadTarget, type DroppedFolder } from "@/utils/dragDropFiles";
 import { assetService } from "@/services/asset.service";
 import { hasActiveFilters } from "@/utils/assetFilters";
 import type { Asset, AssetSortKey } from "@/types";
@@ -30,24 +30,44 @@ interface AssetsToolbarProps {
   count: number;
   countLabel: string;
   projectId?: string;
+  /** Root project's tree id for `projectId` when it's a batch — needed to create a new
+   *  sub-batch (Upload Folder) under it. Undefined/null when `projectId` is itself a project. */
+  parentProjectId?: string | null;
   assets?: Asset[];
 }
 
-export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, assets = [] }: AssetsToolbarProps) {
-  const { viewMode, setViewMode, addAssets, setAssets, filters, sortKey, sortAsc, toggleSort, multiSelectedIds, clearMultiSelect } =
+/** Folder-picker inputs (webkitdirectory) tag every file with its path relative to the picked
+ *  folder — use that to recover the folder name and mirror drag-and-drop's "folder becomes a
+ *  new sub-batch" behavior instead of dumping its files flat into the current target. */
+function folderFromFileList(fileList: FileList): DroppedFolder | null {
+  const files = Array.from(fileList);
+  const first = files[0] as (File & { webkitRelativePath?: string }) | undefined;
+  const topFolder = first?.webkitRelativePath?.split("/")[0];
+  return topFolder ? { name: topFolder, files } : null;
+}
+
+export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, parentProjectId, assets = [] }: AssetsToolbarProps) {
+  const { viewMode, setViewMode, setAssets, filters, sortKey, sortAsc, toggleSort, multiSelectedIds, clearMultiSelect } =
     useAssetStore();
   const [filterOpen, setFilterOpen] = useState(false);
   const [cloudBrowserOpen, setCloudBrowserOpen] = useState(false);
-  const user = useUser();
+  const { uploadFiles, uploadFolder } = useFileUpload();
   const filesInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
 
   function handleFilesSelected(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
-    const assignee = user ? { name: user.name, initials: user.initials } : { name: "Jordan K.", initials: "JK" };
-    const newAssets = createAssetsFromFiles(fileList, projectId ?? "unassigned", assignee);
-    addAssets(newAssets);
-    toast.success(`${newAssets.length} item${newAssets.length === 1 ? "" : "s"} queued for upload`);
+    if (!projectId) {
+      toast.error("Open a project or folder to upload files here.");
+      return;
+    }
+    const target = toUploadTarget({ id: projectId, projectId: parentProjectId });
+    const folder = folderFromFileList(fileList);
+    if (folder) {
+      uploadFolder(folder, target);
+    } else {
+      uploadFiles(Array.from(fileList), target);
+    }
   }
 
   return (

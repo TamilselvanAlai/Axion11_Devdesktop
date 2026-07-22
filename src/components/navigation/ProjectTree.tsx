@@ -2,6 +2,8 @@ import { ChevronRight, Folder } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
+import { useFolderDropTarget } from "@/hooks/useFolderDropTarget";
+import { toUploadTarget } from "@/utils/dragDropFiles";
 import type { ProjectNode } from "@/types";
 import { ROUTES } from "@/constants/routes";
 
@@ -12,6 +14,7 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
   const hasChildren = Boolean(node.children?.length);
   const isExpanded = expandedIds.has(node.id);
   const isActive = activeId === node.id || selectedAssetBatchId === node.id;
+  const { isDragOver, dropHandlers } = useFolderDropTarget(toUploadTarget(node));
 
   return (
     <div>
@@ -23,10 +26,13 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
         style={{ paddingLeft: 8 + depth * 14 }}
         className={cn(
           "flex items-center gap-1.5 rounded-lg py-1.5 pr-2 text-sm font-medium transition-colors cursor-pointer",
-          isActive
+          isDragOver
+            ? "bg-primary/20 ring-1 ring-inset ring-primary"
+            : isActive
             ? "bg-primary/15 text-primary"
             : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/80"
         )}
+        {...dropHandlers}
       >
         {hasChildren ? (
           <button
@@ -38,7 +44,7 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
             }}
             className="flex size-4 shrink-0 items-center justify-center text-sidebar-foreground/60 hover:text-sidebar-foreground"
           >
-            <ChevronRight className={cn("size-3.5 transition-transform", isExpanded && "rotate-90")} />
+            <ChevronRight className={cn("size-3.5 transition-transform duration-200", isExpanded && "rotate-90")} />
           </button>
         ) : (
           <span className="size-4 shrink-0" />
@@ -47,11 +53,16 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
         <span className="truncate">{node.name}</span>
       </div>
 
-      {hasChildren && isExpanded && (
-        <div>
-          {node.children!.map((child) => (
-            <TreeNode key={child.id} node={child} depth={depth + 1} />
-          ))}
+      {hasChildren && (
+        <div
+          className="grid overflow-hidden transition-[grid-template-rows] duration-200 ease-out"
+          style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
+        >
+          <div className="min-h-0">
+            {node.children!.map((child) => (
+              <TreeNode key={child.id} node={child} depth={depth + 1} />
+            ))}
+          </div>
         </div>
       )}
     </div>

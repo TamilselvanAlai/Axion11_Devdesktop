@@ -133,6 +133,7 @@ function toProjectNode(node: ProjectTreeApiNode): ProjectNode {
   return {
     id: node.id,
     name: node.name,
+    projectId: node.projectId,
     children: (node.children ?? [])
       .filter((c) => c.type !== "asset")
       .map(toProjectNode),
@@ -194,6 +195,39 @@ export const assetService = {
       `/uploads?projectId=${encodeURIComponent(numericProjectId)}`
     );
     return latestVersionsOnly(data).map(toAsset);
+  },
+
+  /** Uploads real files to a project or batch (tree node id decides which endpoint/param shape
+   *  the backend expects). Batch uploads process asynchronously on the server — the response
+   *  confirms the request was accepted, not that the rows exist yet. */
+  async uploadFiles(files: File[], target: { type: "project" | "batch"; id: string }): Promise<void> {
+    if (files.length === 0) return;
+    const formData = new FormData();
+    for (const file of files) formData.append("files", file, file.name);
+
+    if (target.type === "batch") {
+      const batchId = target.id.startsWith("b-") ? target.id.slice(2) : target.id;
+      await apiClient.post(`/batches/upload/${encodeURIComponent(batchId)}`, formData, { timeout: 120000 });
+    } else {
+      const projectId = target.id.startsWith("p-") ? target.id.slice(2) : target.id;
+      formData.append("projectId", projectId);
+      await apiClient.post("/uploads", formData, { timeout: 120000 });
+    }
+  },
+
+  /** Creates a brand-new batch (sub-folder) with the given files in one call — this is what a
+   *  dropped OS folder maps to: the folder becomes a batch named after it, nested under
+   *  wherever it was dropped, instead of its files being flattened into the drop target. */
+  async createBatchWithFiles(name: string, files: File[], target: { type: "project" | "batch"; id: string; rootProjectId: string }): Promise<void> {
+    const formData = new FormData();
+    formData.append("name", name);
+    formData.append("projectId", target.rootProjectId);
+    if (target.type === "batch") {
+      const parentBatchId = target.id.startsWith("b-") ? target.id.slice(2) : target.id;
+      formData.append("parentBatchId", parentBatchId);
+    }
+    for (const file of files) formData.append("files", file, file.name);
+    await apiClient.post("/batches", formData, { timeout: 180000 });
   },
 
   async getFolderSummary(nodeId: string): Promise<ProjectSummary[]> {

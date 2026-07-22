@@ -184,7 +184,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
                   onClick={() => setCompareOpen(true)}
                   className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
                 >
-                  <Layers className="size-2.5" /> Compare
+                  <Layers className="size-2.5" /> Review
                 </button>
               </div>
               <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -283,15 +283,12 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
         </div>
       )}
 
-      {previewOpen && previewableUrl && (
+      {previewOpen && previewableUrl && !compareOpen && (
         <AssetPreviewModal
           imageUrl={previewableUrl}
           filename={detail.filename}
           onClose={() => setPreviewOpen(false)}
-          onReview={() => {
-            setPreviewOpen(false);
-            setCompareOpen(true);
-          }}
+          onReview={() => setCompareOpen(true)}
         />
       )}
 
