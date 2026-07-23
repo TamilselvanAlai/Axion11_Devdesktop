@@ -33,11 +33,18 @@ export interface DroppedContents {
   /** Top-level folders dropped — each becomes its own new sub-batch named after the folder,
    *  with everything inside it (including nested subfolders) flattened into that batch's files. */
   folders: DroppedFolder[];
+  /** Dropped .zip files — held out separately since what to do with them (upload as-is vs.
+   *  extract) needs a user decision, unlike loose files/folders which have one obvious behavior. */
+  zips: File[];
 }
 
-/** Splits a drop event's DataTransfer into loose files vs. top-level dropped folders, via the
- *  WebKit File/Directory Entries API — falls back to treating everything as loose files when
- *  that API isn't available (folder-ness can't be detected then). */
+function isZipFile(file: File): boolean {
+  return file.name.toLowerCase().endsWith(".zip");
+}
+
+/** Splits a drop event's DataTransfer into loose files, top-level dropped folders, and dropped
+ *  .zip files, via the WebKit File/Directory Entries API — falls back to treating everything as
+ *  loose files when that API isn't available (folder-ness can't be detected then). */
 export async function contentsFromDataTransfer(dataTransfer: DataTransfer): Promise<DroppedContents> {
   const items = Array.from(dataTransfer.items ?? []);
   const entries = items
@@ -45,11 +52,13 @@ export async function contentsFromDataTransfer(dataTransfer: DataTransfer): Prom
     .filter((e): e is FileSystemEntry => e !== null && e !== undefined);
 
   if (entries.length === 0) {
-    return { looseFiles: Array.from(dataTransfer.files ?? []), folders: [] };
+    const files = Array.from(dataTransfer.files ?? []);
+    return { looseFiles: files.filter((f) => !isZipFile(f)), folders: [], zips: files.filter(isZipFile) };
   }
 
   const looseFiles: File[] = [];
   const folders: DroppedFolder[] = [];
+  const zips: File[] = [];
 
   for (const entry of entries) {
     if (entry.isDirectory) {
@@ -59,11 +68,13 @@ export async function contentsFromDataTransfer(dataTransfer: DataTransfer): Prom
       const file = await new Promise<File | null>((resolve) =>
         (entry as FileSystemFileEntry).file((f) => resolve(f), () => resolve(null))
       );
-      if (file) looseFiles.push(file);
+      if (!file) continue;
+      if (isZipFile(file)) zips.push(file);
+      else looseFiles.push(file);
     }
   }
 
-  return { looseFiles, folders };
+  return { looseFiles, folders, zips };
 }
 
 export interface UploadTarget {

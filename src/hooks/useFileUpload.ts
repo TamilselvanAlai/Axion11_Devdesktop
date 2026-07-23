@@ -1,7 +1,9 @@
 import { toast } from "sonner";
 import { assetService } from "@/services/asset.service";
 import { useAssetStore } from "@/store";
-import type { DroppedFolder, UploadTarget } from "@/utils/dragDropFiles";
+import type { DroppedContents, DroppedFolder, UploadTarget } from "@/utils/dragDropFiles";
+import { confirmZipUpload } from "@/utils/confirmZipUpload";
+import { batchNameFromZip, extractZipToFiles } from "@/utils/zipUpload";
 
 export function useFileUpload() {
   const refetchAssets = useAssetStore((s) => s.refetchAssets);
@@ -39,10 +41,30 @@ export function useFileUpload() {
     }
   }
 
-  async function uploadDroppedContents(contents: { looseFiles: File[]; folders: DroppedFolder[] }, target: UploadTarget) {
+  async function uploadDroppedContents(contents: DroppedContents, target: UploadTarget) {
+    let looseFiles = contents.looseFiles;
+    let folders = contents.folders;
+
+    if (contents.zips.length > 0) {
+      const choice = await confirmZipUpload(contents.zips.map((z) => z.name));
+      if (choice === "zip") {
+        looseFiles = [...looseFiles, ...contents.zips];
+      } else if (choice === "extract") {
+        for (const zip of contents.zips) {
+          try {
+            const files = await extractZipToFiles(zip);
+            folders = [...folders, { name: batchNameFromZip(zip), files }];
+          } catch (err) {
+            toast.error(err instanceof Error ? err.message : `Failed to read "${zip.name}".`);
+          }
+        }
+      }
+      // choice === null (dismissed without picking): drop the zips, upload nothing for them.
+    }
+
     const jobs: Promise<void>[] = [];
-    if (contents.looseFiles.length > 0) jobs.push(uploadFiles(contents.looseFiles, target));
-    for (const folder of contents.folders) jobs.push(uploadFolder(folder, target));
+    if (looseFiles.length > 0) jobs.push(uploadFiles(looseFiles, target));
+    for (const folder of folders) jobs.push(uploadFolder(folder, target));
     await Promise.all(jobs);
   }
 

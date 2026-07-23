@@ -54,7 +54,7 @@ pub async fn open_and_sync_asset(
     relative_path: String,
     asset_id: String,
     batch_id: String,
-    upload_url: String,
+    api_base: String,
     auth_token: String,
     mount_root: Option<String>,
 ) -> Result<OpenAssetResult, String> {
@@ -64,7 +64,7 @@ pub async fn open_and_sync_asset(
     tauri_plugin_opener::open_path(local_path.to_string_lossy().to_string(), None::<&str>)
         .map_err(|e| format!("Failed to open file: {e}"))?;
 
-    start_watching(app, local_path.clone(), asset_id, batch_id, upload_url, auth_token);
+    start_watching(app, local_path.clone(), asset_id, batch_id, api_base, auth_token);
 
     Ok(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
 }
@@ -204,7 +204,7 @@ fn start_watching(
     path: PathBuf,
     asset_id: String,
     batch_id: String,
-    upload_url: String,
+    api_base: String,
     auth_token: String,
 ) {
     {
@@ -216,7 +216,15 @@ fn start_watching(
     }
 
     std::thread::spawn(move || {
-        let watch_path = path.clone();
+        // The originally-opened path — kept immutable so the dedup registration in
+        // `watched_paths()` (keyed on this exact value) can always be cleaned up correctly,
+        // even if `current_path` below later shifts to a different filename/extension.
+        let original_path = path.clone();
+        // The file actually being watched right now. Starts as `original_path`, but shifts if
+        // the editor saves under a different extension (e.g. Photoshop "Save As" turning a
+        // .tif into a .psd in the same folder) — matched by base filename, not full path, so a
+        // type change doesn't silently stop being tracked.
+        let mut current_path = path.clone();
         let mut last_handled = Instant::now() - Duration::from_secs(60);
 
         let (tx, rx) = std::sync::mpsc::channel();
@@ -231,7 +239,7 @@ fn start_watching(
             }
         };
 
-        if let Some(parent) = watch_path.parent() {
+        if let Some(parent) = current_path.parent() {
             if watcher.watch(parent, RecursiveMode::NonRecursive).is_err() {
                 let _ = app.emit(
                     "asset-sync-error",
@@ -243,27 +251,32 @@ fn start_watching(
 
         for res in rx {
             let Ok(event) = res else { continue };
-            let touches_file = event.paths.iter().any(|p| p == &watch_path);
-            // Many editors (Photoshop, Office, Illustrator, etc.) don't modify the file in
-            // place — they write a temp file, delete the original, then rename/create the
-            // replacement at the same path. That sequence fires Remove+Create, never Modify,
-            // so a save could be silently missed if we only listened for Modify.
-            if !touches_file
-                || !matches!(
-                    event.kind,
-                    notify::EventKind::Modify(_) | notify::EventKind::Create(_)
-                )
-            {
+            if !matches!(
+                event.kind,
+                notify::EventKind::Modify(_) | notify::EventKind::Create(_)
+            ) {
                 continue;
             }
+
+            // Match by base filename (stem) + a recognized asset extension, not full-path
+            // equality — a re-save under a different extension is still the same asset.
+            let stem = current_path.file_stem();
+            let parent = current_path.parent();
+            let matched = event
+                .paths
+                .iter()
+                .find(|p| p.parent() == parent && p.file_stem() == stem && is_recognized_asset_extension(p));
+            let Some(matched) = matched else { continue };
+
             // A Create means the file was just replaced — give the writer a beat longer to
             // finish before we try to read it, since replace-on-save can still be settling.
             if matches!(event.kind, notify::EventKind::Create(_)) {
                 std::thread::sleep(Duration::from_millis(200));
             }
-            if !watch_path.exists() {
+            if !matched.exists() {
                 continue;
             }
+            current_path = matched.clone();
 
             // Debounce — editors commonly fire several modify events per save.
             if last_handled.elapsed() < Duration::from_millis(1200) {
@@ -274,17 +287,17 @@ fn start_watching(
             std::thread::sleep(Duration::from_millis(400));
 
             let app = app.clone();
-            let watch_path = watch_path.clone();
+            let upload_path = current_path.clone();
             let asset_id = asset_id.clone();
             let batch_id = batch_id.clone();
-            let upload_url = upload_url.clone();
+            let api_base = api_base.clone();
             let auth_token = auth_token.clone();
 
             std::thread::spawn(move || {
                 let result = tauri::async_runtime::block_on(upload_new_version(
-                    &watch_path,
-                    &batch_id,
-                    &upload_url,
+                    &upload_path,
+                    &asset_id,
+                    &api_base,
                     &auth_token,
                 ));
                 match result {
@@ -294,7 +307,7 @@ fn start_watching(
                             SyncCompletePayload {
                                 asset_id,
                                 batch_id,
-                                local_path: watch_path.to_string_lossy().to_string(),
+                                local_path: upload_path.to_string_lossy().to_string(),
                                 new_asset_id,
                             },
                         );
@@ -306,8 +319,23 @@ fn start_watching(
             });
         }
 
-        watched_paths().lock().unwrap().remove(&watch_path);
+        watched_paths().lock().unwrap().remove(&original_path);
     });
+}
+
+/// Whether `path`'s extension is one this app actually treats as an asset — guards the
+/// different-extension re-save match (a base-filename match alone would also fire on editor
+/// lock/temp files like `.tmp`, `~$file.psd`, or `.DS_Store`-adjacent junk).
+fn is_recognized_asset_extension(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(
+        ext.as_str(),
+        "jpg" | "jpeg" | "png" | "webp" | "tif" | "tiff" | "psd" | "cr3" | "mp4" | "mov"
+    )
 }
 
 /// The backend stores whatever content-type the upload part declares — guess it from the
@@ -332,46 +360,105 @@ fn guess_mime_type(path: &Path) -> &'static str {
     }
 }
 
-/// Re-uploads the saved file as a new version and returns that new version's asset id — the
-/// backend creates an entirely separate row for each version, so callers need this id to point
-/// the UI at the fresh row instead of continuing to show the stale one that was open before the
-/// edit. Uses the synchronous /upload-sync endpoint specifically because the response is needed
-/// immediately; the regular batch-upload endpoint processes on a background thread and its
-/// response returns before the row even exists.
-async fn upload_new_version(path: &Path, batch_id: &str, upload_url: &str, auth_token: &str) -> Result<String, String> {
+/// Reads a just-saved file, retrying on a Windows sharing violation (os error 32) — the editor
+/// (Photoshop, etc.) can still hold the file open for several seconds after the watcher's fixed
+/// flush-wait, especially for large TIFF/PSD saves, so a single immediate read attempt fails
+/// intermittently on exactly the files this feature cares about most. Retries for up to ~15s
+/// before giving up; any other kind of read error still fails immediately.
+fn read_file_with_retry(path: &Path) -> Result<Vec<u8>, String> {
+    const MAX_ATTEMPTS: u32 = 30;
+    const RETRY_DELAY: Duration = Duration::from_millis(500);
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match std::fs::read(path) {
+            Ok(bytes) => return Ok(bytes),
+            Err(e) => {
+                let is_locked = e.raw_os_error() == Some(32);
+                if !is_locked || attempt + 1 == MAX_ATTEMPTS {
+                    return Err(format!("Failed to read local file: {e}"));
+                }
+                std::thread::sleep(RETRY_DELAY);
+            }
+        }
+    }
+    unreachable!()
+}
+
+/// Re-uploads the saved file to replace the currently-open version's content **in place** —
+/// same row, same version number. An edit-and-resave isn't a new version by itself: it becomes
+/// draft + established (the "VE" badge — the current version an editor is working on), and the
+/// version number only actually advances when a QC member approves it, mirroring how
+/// AssetService#approveAsset already advances the version in place on approval rather than
+/// forking a new row. Returns the (unchanged) asset id on success.
+///
+/// Goes through GCS's own signed-URL upload rather than posting the file straight to the
+/// backend: Cloud Run hard-caps request bodies at ~32MB, which real TIFF/PSD masters routinely
+/// exceed, so a direct multipart POST to the backend fails with 413 on anything bigger than
+/// that. The signed-URL flow keeps the large bytes off Cloud Run entirely — only small JSON
+/// requests go through it.
+async fn upload_new_version(path: &Path, asset_id: &str, api_base: &str, auth_token: &str) -> Result<String, String> {
     let file_name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".to_string());
-
-    let bytes = std::fs::read(path).map_err(|e| format!("Failed to read local file: {e}"))?;
-
-    let part = reqwest::multipart::Part::bytes(bytes)
-        .file_name(file_name)
-        .mime_str(guess_mime_type(path))
-        .map_err(|e| format!("Failed to build upload: {e}"))?;
-    let form = reqwest::multipart::Form::new().part("file", part);
+    let content_type = guess_mime_type(path);
+    let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+    let bytes = read_file_with_retry(path)?;
 
     let client = reqwest::Client::new();
-    let url = upload_url.replace("{batchId}", batch_id);
-    let response = client
-        .post(&url)
+
+    // 1. Ask the backend for a short-lived signed PUT URL straight to GCS.
+    let signed: serde_json::Value = client
+        .post(format!("{api_base}/uploads/signed-url"))
         .bearer_auth(auth_token)
-        .multipart(form)
+        .json(&serde_json::json!({ "fileName": file_name, "contentType": content_type }))
         .send()
         .await
-        .map_err(|e| format!("Upload failed: {e}"))?;
-
-    if !response.status().is_success() {
-        return Err(format!("Upload failed with status {}", response.status()));
-    }
-
-    let body: serde_json::Value = response
+        .map_err(|e| format!("Failed to request upload URL: {e}"))?
         .json()
         .await
-        .map_err(|e| format!("Failed to parse upload response: {e}"))?;
-    body.get("id")
+        .map_err(|e| format!("Failed to parse upload URL response: {e}"))?;
+
+    let signed_url = signed.get("signedUrl").and_then(|v| v.as_str()).ok_or_else(|| {
+        let detail = signed.get("error").and_then(|v| v.as_str()).unwrap_or("no signed URL returned");
+        format!("Couldn't get an upload URL from the server: {detail}")
+    })?;
+    let gcs_file_name = signed
+        .get("gcsFileName")
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| "Upload URL response was missing the storage file name".to_string())?;
+
+    // 2. Upload the actual bytes directly to GCS — bypasses the backend/Cloud Run entirely.
+    let put_response = client
+        .put(signed_url)
+        .header("Content-Type", content_type)
+        .body(bytes)
+        .send()
+        .await
+        .map_err(|e| format!("Upload to storage failed: {e}"))?;
+    if !put_response.status().is_success() {
+        return Err(format!("Upload to storage failed with status {}", put_response.status()));
+    }
+
+    // 3. Point the existing row at the new file — same version number, marked draft + established.
+    let updated: serde_json::Value = client
+        .post(format!("{api_base}/uploads/{asset_id}/replace-content"))
+        .bearer_auth(auth_token)
+        .json(&serde_json::json!({
+            "gcsFileName": gcs_file_name,
+            "contentType": content_type,
+            "fileSize": file_size,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to save the new version: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse save response: {e}"))?;
+
+    updated
+        .get("id")
         .and_then(|v| v.as_i64())
         .map(|id| id.to_string())
-        .ok_or_else(|| "Upload response was missing the new asset id".to_string())
+        .ok_or_else(|| "Save response was missing the asset id".to_string())
 }

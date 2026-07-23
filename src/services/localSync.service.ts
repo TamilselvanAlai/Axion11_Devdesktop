@@ -51,7 +51,7 @@ export const localSyncService = {
       relativePath: params.relativePath,
       assetId: params.assetId,
       batchId: params.batchId,
-      uploadUrl: `${env.apiBaseUrl}/batches/{batchId}/upload-sync`,
+      apiBase: env.apiBaseUrl,
       authToken: token,
       mountRoot: params.mountRoot ?? null,
     });

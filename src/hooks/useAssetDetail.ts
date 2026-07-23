@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
-import { useAssetStore } from "@/store";
 import type { AssetDetail, LoadingState } from "@/types";
 
 export function useAssetDetail(assetId: string | null) {
@@ -35,10 +34,9 @@ export function useAssetDetail(assetId: string | null) {
     };
   }, [assetId]);
 
-  // A locally-edited file that was opened via "Open File" just got auto-uploaded as a new
-  // version — switch the panel over to that new version's row instead of refetching the old
-  // one (a save always creates a separate row, so refetching the same id would keep showing
-  // the pre-edit image/status forever).
+  // A locally-edited file that was opened via "Open File" just got auto-synced back — it
+  // updates the same version's row in place (draft + established) rather than forking a new
+  // row, so the fix is a plain refetch of this same id, not a switch to a different one.
   useEffect(() => {
     if (!assetId) return;
     let unlistenComplete: (() => void) | undefined;
@@ -46,12 +44,8 @@ export function useAssetDetail(assetId: string | null) {
 
     localSyncService.onSyncComplete((payload) => {
       if (payload.assetId !== assetId) return;
-      toast.success("Synced new version from your local edit");
-      if (payload.newAssetId) {
-        useAssetStore.getState().selectAsset(payload.newAssetId);
-      } else {
-        refetch();
-      }
+      toast.success("Synced your local edit");
+      refetch();
     }).then((fn) => { unlistenComplete = fn; });
 
     localSyncService.onSyncError((payload) => {
