@@ -260,13 +260,23 @@ fn start_watching(
 
             // Match by base filename (stem) + a recognized asset extension, not full-path
             // equality — a re-save under a different extension is still the same asset.
-            let stem = current_path.file_stem();
+            // Case-insensitive: Windows filesystems don't distinguish case, and some editors'
+            // Save As dialogs normalize casing, so an exact OsStr comparison could silently
+            // miss an otherwise-identical filename.
+            let stem = current_path.file_stem().map(|s| s.to_string_lossy().to_lowercase());
             let parent = current_path.parent();
-            let matched = event
-                .paths
-                .iter()
-                .find(|p| p.parent() == parent && p.file_stem() == stem && is_recognized_asset_extension(p));
-            let Some(matched) = matched else { continue };
+            let matched = event.paths.iter().find(|p| {
+                p.parent() == parent
+                    && p.file_stem().map(|s| s.to_string_lossy().to_lowercase()) == stem
+                    && is_recognized_asset_extension(p)
+            });
+            let Some(matched) = matched else {
+                eprintln!(
+                    "[local_sync] watching {:?} (stem {:?}) — ignored unmatched event {:?}: {:?}",
+                    current_path, stem, event.kind, event.paths
+                );
+                continue;
+            };
 
             // A Create means the file was just replaced — give the writer a beat longer to
             // finish before we try to read it, since replace-on-save can still be settling.
@@ -408,16 +418,14 @@ async fn upload_new_version(path: &Path, asset_id: &str, api_base: &str, auth_to
     let client = reqwest::Client::new();
 
     // 1. Ask the backend for a short-lived signed PUT URL straight to GCS.
-    let signed: serde_json::Value = client
-        .post(format!("{api_base}/uploads/signed-url"))
-        .bearer_auth(auth_token)
-        .json(&serde_json::json!({ "fileName": file_name, "contentType": content_type }))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to request upload URL: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse upload URL response: {e}"))?;
+    let signed: serde_json::Value = post_json(
+        &client,
+        &format!("{api_base}/uploads/signed-url"),
+        auth_token,
+        serde_json::json!({ "fileName": file_name, "contentType": content_type }),
+    )
+    .await
+    .map_err(|e| format!("Failed to request upload URL: {e}"))?;
 
     let signed_url = signed.get("signedUrl").and_then(|v| v.as_str()).ok_or_else(|| {
         let detail = signed.get("error").and_then(|v| v.as_str()).unwrap_or("no signed URL returned");
@@ -437,28 +445,57 @@ async fn upload_new_version(path: &Path, asset_id: &str, api_base: &str, auth_to
         .await
         .map_err(|e| format!("Upload to storage failed: {e}"))?;
     if !put_response.status().is_success() {
-        return Err(format!("Upload to storage failed with status {}", put_response.status()));
+        let status = put_response.status();
+        let body = put_response.text().await.unwrap_or_default();
+        return Err(format!("Upload to storage failed with status {status}: {body}"));
     }
 
     // 3. Point the existing row at the new file — same version number, marked draft + established.
-    let updated: serde_json::Value = client
-        .post(format!("{api_base}/uploads/{asset_id}/replace-content"))
-        .bearer_auth(auth_token)
-        .json(&serde_json::json!({
+    let updated: serde_json::Value = post_json(
+        &client,
+        &format!("{api_base}/uploads/{asset_id}/replace-content"),
+        auth_token,
+        serde_json::json!({
             "gcsFileName": gcs_file_name,
             "contentType": content_type,
             "fileSize": file_size,
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to save the new version: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse save response: {e}"))?;
+        }),
+    )
+    .await
+    .map_err(|e| format!("Failed to save the new version: {e}"))?;
 
     updated
         .get("id")
         .and_then(|v| v.as_i64())
         .map(|id| id.to_string())
         .ok_or_else(|| "Save response was missing the asset id".to_string())
+}
+
+/// POSTs JSON and returns the parsed response body — on a non-2xx status, the error includes
+/// the actual status code and response body (not just a generic JSON-parse failure), since a
+/// non-JSON error page/body would otherwise surface as a confusing "failed to parse" message
+/// that hides the real cause (e.g. a 413 from an intermediate proxy, a 401, a 500 with a stack
+/// trace body).
+async fn post_json(
+    client: &reqwest::Client,
+    url: &str,
+    auth_token: &str,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let response = client
+        .post(url)
+        .bearer_auth(auth_token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {e}"))?;
+
+    let status = response.status();
+    let text = response.text().await.map_err(|e| format!("Failed to read response: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!("Server responded with status {status}: {text}"));
+    }
+
+    serde_json::from_str(&text).map_err(|e| format!("Failed to parse response: {e} (body: {text})"))
 }

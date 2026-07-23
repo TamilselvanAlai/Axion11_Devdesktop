@@ -34,6 +34,18 @@ const COLUMNS: { key: AssetSortKey; label: string }[] = [
   { key: "updatedAt", label: "Date & Time" },
 ];
 
+const DEFAULT_COLUMN_WIDTHS: Record<AssetSortKey, number> = {
+  name: 280,
+  status: 110,
+  fileType: 90,
+  sizeMb: 90,
+  version: 110,
+  assignee: 170,
+  updatedAt: 170,
+};
+
+const MIN_COLUMN_WIDTH = 60;
+
 function formatDateTime(iso: string) {
   return new Date(iso).toLocaleString("en-US", {
     day: "2-digit",
@@ -66,6 +78,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
   const lastClickedIndex = useRef<number | null>(null);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const [compareAssetId, setCompareAssetId] = useState<string | null>(null);
+  const [columnWidths, setColumnWidths] = useState<Record<AssetSortKey, number>>(DEFAULT_COLUMN_WIDTHS);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -76,6 +89,24 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
       toggleMultiSelect(assetId);
     }
     lastClickedIndex.current = index;
+  }
+
+  function handleColumnResizeStart(key: AssetSortKey, e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = columnWidths[key];
+
+    function handleMove(moveEvent: MouseEvent) {
+      const next = Math.max(MIN_COLUMN_WIDTH, startWidth + (moveEvent.clientX - startX));
+      setColumnWidths((prev) => ({ ...prev, [key]: next }));
+    }
+    function handleUp() {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    }
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
   }
 
   if (rows.length === 0) {
@@ -89,7 +120,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
 
   return (
     <>
-    <Table>
+    <Table className="table-fixed">
       <TableHeader>
         <TableRow>
           <TableHead className="w-8">
@@ -106,7 +137,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
             />
           </TableHead>
           {COLUMNS.map((col) => (
-            <TableHead key={col.key}>
+            <TableHead key={col.key} className="relative overflow-hidden" style={{ width: columnWidths[col.key] }}>
               <button
                 type="button"
                 onClick={() => toggleSort(col.key)}
@@ -116,6 +147,13 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
                 {sortKey === col.key &&
                   (sortAsc ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
               </button>
+              <div
+                onMouseDown={(e) => handleColumnResizeStart(col.key, e)}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={`Resize ${col.label} column`}
+                className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/50 active:bg-primary"
+              />
             </TableHead>
           ))}
         </TableRow>
@@ -133,14 +171,14 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
             </TableCell>
             <TableCell>
               <div
-                className="flex items-center gap-3"
+                className="flex min-w-0 items-center gap-3"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
                   setPreviewIndex(index);
                 }}
               >
                 <AssetThumbnail color={asset.thumbnailColor} />
-                <span className="max-w-[160px] truncate font-medium">{asset.name}</span>
+                <span className="min-w-0 flex-1 truncate font-medium">{asset.name}</span>
               </div>
             </TableCell>
             <TableCell>

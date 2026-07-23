@@ -14,7 +14,7 @@ export function DashboardLayout({ children, rightPanel, hideSearch }: DashboardL
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppHeader hideSearch={hideSearch} />
         <div className="flex flex-1 overflow-hidden">
-          <main className="@container flex-1 overflow-y-auto p-2">{children}</main>
+          <main className="@container flex flex-1 flex-col overflow-y-auto p-2">{children}</main>
           {rightPanel}
         </div>
       </div>
