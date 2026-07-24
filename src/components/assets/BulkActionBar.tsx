@@ -82,7 +82,7 @@ export function BulkActionBar() {
             <SelectTrigger size="sm" className="w-40 text-xs">
               <SelectValue placeholder="Move to..." />
             </SelectTrigger>
-            <SelectContent className="max-h-64 w-72">
+            <SelectContent className="overflow-y-auto" style={{ maxHeight: 220, width: 256 }}>
               {batchOptions.map((opt) => (
                 <SelectItem key={opt.id} value={opt.id} title={opt.label} className="min-w-0 py-1 text-xs">
                   <span className="min-w-0 truncate">{opt.label}</span>

@@ -5,7 +5,7 @@ import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
-import { formatDuration, formatHhMmSs, formatRelativeTime } from "@/utils/formatters";
+import { formatHhMmSs, formatRelativeTime } from "@/utils/formatters";
 import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
@@ -161,7 +161,6 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     { label: "Assigned", value: detail.assignee.name },
     { label: "Modified", value: formatRelativeTime(detail.modifiedAt) },
     { label: "Production Time", value: productionSeconds !== null ? formatHhMmSs(productionSeconds) : "—" },
-    ...(localInfo ? [{ label: "Time Spent", value: formatDuration(Date.now() - localInfo.openedAt) }] : []),
   ];
 
   return (
