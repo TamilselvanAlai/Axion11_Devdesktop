@@ -2,6 +2,7 @@ import { AssetsToolbar } from "@/components/assets/AssetsToolbar";
 import { AssetsTable } from "@/components/assets/AssetsTable";
 import { AssetsGrid } from "@/components/assets/AssetsGrid";
 import { AssetsSkeleton } from "@/components/assets/AssetsSkeleton";
+import { BulkActionBar } from "@/components/assets/BulkActionBar";
 import { useAssets } from "@/hooks/useAssets";
 import { useAssetStore } from "@/store";
 import { findAncestorPath } from "@/utils/assetPath";
@@ -35,6 +36,7 @@ export function AssetsScopeView({ scope, breadcrumbs, countLabel }: AssetsScopeV
       ) : (
         <AssetsTable assets={assets} />
       )}
+      <BulkActionBar />
     </div>
   );
 }

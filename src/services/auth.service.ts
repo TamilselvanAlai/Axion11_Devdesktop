@@ -34,6 +34,7 @@ function buildSession(data: AuthApiResponse): AuthSession {
       name: data.name,
       email: data.email,
       role: mapRole(data.role),
+      rawRole: data.role ?? "",
       initials: getInitials(data.name),
     },
     token: data.token,

@@ -28,4 +28,13 @@ export const assetEditSessionService = {
     const { data } = await apiClient.get<AssetEditSessionEntry[]>("/asset-edit-sessions/today");
     return data;
   },
+
+  /** Total logged editing time for this asset across every user, in seconds — shown to all
+   *  users as "Production Time" in the asset info panel. */
+  async getAssetTotalSeconds(assetId: string): Promise<number> {
+    const { data } = await apiClient.get<{ totalSeconds: number }>(
+      `/asset-edit-sessions/asset/${encodeURIComponent(assetId)}/total`
+    );
+    return data.totalSeconds;
+  },
 };

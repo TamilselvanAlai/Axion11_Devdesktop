@@ -5,7 +5,7 @@ import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
-import { formatDuration, formatRelativeTime } from "@/utils/formatters";
+import { formatDuration, formatHhMmSs, formatRelativeTime } from "@/utils/formatters";
 import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
@@ -27,7 +27,7 @@ function formatDateTime(iso: string) {
 }
 
 export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail; onStatusChange?: () => void }) {
-  const status = getStatusMeta(detail.status, detail.version);
+  const status = getStatusMeta(detail.status, detail.established);
   const projectTree = useAssetStore((s) => s.projectTree);
   const selectAsset = useAssetStore((s) => s.selectAsset);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
@@ -39,6 +39,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
   const [localInfo, setLocalInfo] = useState<OpenAssetResult | null>(null);
   const [versions, setVersions] = useState<Asset[] | null>(null);
+  const [productionSeconds, setProductionSeconds] = useState<number | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
   // Once a local copy exists, opening it again just reopens the same file in the OS default
@@ -56,6 +57,21 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     };
   }, [detail.id]);
 
+  // Server-tracked total editing time for this asset, across every user — shown to all users,
+  // unlike "Time Spent" below which is a local-only, current-machine timestamp.
+  useEffect(() => {
+    let cancelled = false;
+    setProductionSeconds(null);
+    assetEditSessionService.getAssetTotalSeconds(detail.id).then((seconds) => {
+      if (!cancelled) setProductionSeconds(seconds);
+    }).catch(() => {
+      if (!cancelled) setProductionSeconds(0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [detail.id]);
+
   // Picks up an already-downloaded local copy (and its first-opened timestamp) even when this
   // session isn't what triggered the download, so "Time Spent" shows up on revisit.
   useEffect(() => {
@@ -64,14 +80,14 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       return;
     }
     let cancelled = false;
-    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename, detail.id);
     localSyncService.getLocalAssetInfo({ relativePath, mountRoot: mountPoint }).then((info) => {
       if (!cancelled) setLocalInfo(info);
     });
     return () => {
       cancelled = true;
     };
-  }, [isTauri, detail.batchId, detail.filename, projectTree, mountPoint]);
+  }, [isTauri, detail.batchId, detail.filename, detail.id, projectTree, mountPoint]);
 
   async function handleOpenFile() {
     if (!detail.downloadUrl) {
@@ -90,7 +106,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
 
     setOpening(true);
     try {
-      const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+      const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename, detail.id);
       const result = await localSyncService.openAndSync({
         downloadUrl: detail.downloadUrl,
         relativePath,
@@ -144,6 +160,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     { label: "ETA", value: formatDateTime(detail.etaAt) },
     { label: "Assigned", value: detail.assignee.name },
     { label: "Modified", value: formatRelativeTime(detail.modifiedAt) },
+    { label: "Production Time", value: productionSeconds !== null ? formatHhMmSs(productionSeconds) : "—" },
     ...(localInfo ? [{ label: "Time Spent", value: formatDuration(Date.now() - localInfo.openedAt) }] : []),
   ];
 
@@ -160,7 +177,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
               <span className={`size-1.5 rounded-full ${status.dotClass}`} /> {status.label}
             </span>
             <span className="rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-foreground/70">{detail.version}</span>
-            {detail.established && <EstablishedBadge />}
+            {detail.established && detail.version !== "VE" && <EstablishedBadge />}
             {detail.status !== "rejected" && (
               <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-muted-foreground">
                 <CheckCircle className="size-2.5 text-success" /> Checksum OK
@@ -193,7 +210,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
                     key={v.id}
                     type="button"
                     onClick={() => selectAsset(v.id)}
-                    title={`${v.version}${v.established ? " · VE" : ""}`}
+                    title={v.established && v.version !== "VE" ? `${v.version} · VE` : v.version}
                     className={`relative size-10 shrink-0 overflow-hidden rounded-md ring-2 transition-colors ${
                       v.id === detail.id ? "ring-primary" : "ring-transparent hover:ring-white/20"
                     }`}
@@ -213,7 +230,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
           <div className="flex flex-col gap-2.5">
             {rows.map((row) => (
               <div key={row.label} className="flex items-start justify-between gap-2">
-                <span className="w-16 shrink-0 text-xs text-muted-foreground">{row.label}</span>
+                <span className="w-24 shrink-0 text-xs text-muted-foreground">{row.label}</span>
                 <span
                   title={String(row.value)}
                   className="truncate text-right font-mono text-xs leading-relaxed text-foreground/70"

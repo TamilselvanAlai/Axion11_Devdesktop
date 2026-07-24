@@ -116,7 +116,7 @@ function VersionSelect({
         .map((v) => (
           <option key={v.id} value={v.id}>
             {v.version} · {v.name}
-            {v.established ? " · VE" : ""}
+            {v.established && v.version !== "VE" ? " · VE" : ""}
           </option>
         ))}
     </select>
@@ -263,7 +263,7 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
     window.open(right.thumbnailColor, "_blank");
   }
 
-  const rightStatus = right ? getStatusMeta(right.status, right.version) : null;
+  const rightStatus = right ? getStatusMeta(right.status, right.established) : null;
 
   return (
     <div className="fixed inset-0 z-100 flex flex-col bg-background">
@@ -272,7 +272,7 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
           <div className="flex items-center gap-2">
             <h2 className="truncate text-sm font-semibold">{right?.name ?? "Loading…"}</h2>
             {right && <span className="rounded-md bg-white/5 px-1.5 py-0.5 font-mono text-xs text-foreground/70">{right.version}</span>}
-            {right?.established && <EstablishedBadge />}
+            {right?.established && right.version !== "VE" && <EstablishedBadge />}
           </div>
         </div>
         <div className="flex items-center gap-2">

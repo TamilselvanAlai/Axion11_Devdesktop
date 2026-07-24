@@ -370,21 +370,31 @@ fn guess_mime_type(path: &Path) -> &'static str {
     }
 }
 
-/// Reads a just-saved file, retrying on a Windows sharing violation (os error 32) — the editor
-/// (Photoshop, etc.) can still hold the file open for several seconds after the watcher's fixed
-/// flush-wait, especially for large TIFF/PSD saves, so a single immediate read attempt fails
-/// intermittently on exactly the files this feature cares about most. Retries for up to ~15s
-/// before giving up; any other kind of read error still fails immediately.
+/// Reads a just-saved file, retrying on a Windows sharing violation (os error 32) or an empty
+/// read — the editor (Photoshop, etc.) can still hold the file open for several seconds after
+/// the watcher's fixed flush-wait, especially for large TIFF/PSD saves, so a single immediate
+/// read attempt fails intermittently on exactly the files this feature cares about most. An
+/// empty read is treated the same as a lock: some save sequences briefly leave a 0-byte file at
+/// the target path before the real content lands (e.g. truncate-then-write), and silently
+/// "succeeding" with that empty read is worse than failing — it uploads a blank file as the new
+/// version instead of erroring or waiting. Retries for up to ~15s before giving up.
 fn read_file_with_retry(path: &Path) -> Result<Vec<u8>, String> {
     const MAX_ATTEMPTS: u32 = 30;
     const RETRY_DELAY: Duration = Duration::from_millis(500);
 
     for attempt in 0..MAX_ATTEMPTS {
+        let last_attempt = attempt + 1 == MAX_ATTEMPTS;
         match std::fs::read(path) {
+            Ok(bytes) if bytes.is_empty() => {
+                if last_attempt {
+                    return Err("File was still empty after waiting — the save may not have finished".to_string());
+                }
+                std::thread::sleep(RETRY_DELAY);
+            }
             Ok(bytes) => return Ok(bytes),
             Err(e) => {
                 let is_locked = e.raw_os_error() == Some(32);
-                if !is_locked || attempt + 1 == MAX_ATTEMPTS {
+                if !is_locked || last_attempt {
                     return Err(format!("Failed to read local file: {e}"));
                 }
                 std::thread::sleep(RETRY_DELAY);
@@ -412,10 +422,21 @@ async fn upload_new_version(path: &Path, asset_id: &str, api_base: &str, auth_to
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "file".to_string());
     let content_type = guess_mime_type(path);
-    let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
     let bytes = read_file_with_retry(path)?;
+    // Derived from the bytes actually being sent, not a metadata() snapshot taken earlier —
+    // the file can still be settling while read_file_with_retry waits out a lock, so a
+    // pre-read size could disagree with the real body length and produce a mismatched
+    // Content-Length (which GCS also rejects, similarly to a missing one).
+    let file_size = bytes.len() as u64;
 
-    let client = reqwest::Client::new();
+    // HTTP/1.1 only: guarantees a literal Content-Length header goes out on the wire. Some
+    // HTTP/2 client implementations drop an explicitly-set Content-Length in favor of relying
+    // on stream framing to convey the body length, which GCS's upload endpoint doesn't accept —
+    // it wants the header present regardless of protocol version.
+    let client = reqwest::Client::builder()
+        .http1_only()
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {e}"))?;
 
     // 1. Ask the backend for a short-lived signed PUT URL straight to GCS.
     let signed: serde_json::Value = post_json(
@@ -437,9 +458,14 @@ async fn upload_new_version(path: &Path, asset_id: &str, api_base: &str, auth_to
         .ok_or_else(|| "Upload URL response was missing the storage file name".to_string())?;
 
     // 2. Upload the actual bytes directly to GCS — bypasses the backend/Cloud Run entirely.
+    // Content-Length is set explicitly rather than left for the client to infer: GCS's upload
+    // endpoint rejects requests without a literal Content-Length header with 411, which an
+    // async HTTP client can end up omitting if it negotiates HTTP/2 (framing conveys the body
+    // length there, so the client may not bother restating it as a header).
     let put_response = client
         .put(signed_url)
         .header("Content-Type", content_type)
+        .header("Content-Length", file_size.to_string())
         .body(bytes)
         .send()
         .await

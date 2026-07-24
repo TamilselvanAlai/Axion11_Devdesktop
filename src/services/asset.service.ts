@@ -72,15 +72,22 @@ const THUMB_COLORS = ["amber", "rose", "slate", "pink", "emerald", "blue", "viol
 function toAsset(dto: ImageUploadApiDto): Asset {
   const sizeMb = dto.fileSize ? Math.round((dto.fileSize / (1024 * 1024)) * 10) / 10 : 0;
   const assigneeName = dto.assignedToName ?? dto.uploadedBy ?? "Unassigned";
+  const status = toAssetStatus(dto.approvalStatus, dto.imageQualityQcCheck);
+  // The established (VE) version doesn't show its provisional version number until QC decides
+  // on it — it reads as "VE" while pending review, then the real v{n} once approved/rejected/
+  // live. The number is already stored underneath (see ImageUploadService#syncEditedVersion),
+  // this is purely a display choice so a not-yet-reviewed edit doesn't look like a done deal.
+  const isPendingReview = status !== "approved" && status !== "rejected" && status !== "live";
+  const version = dto.established && isPendingReview ? "VE" : `v${dto.versionNumber ?? 1}`;
   return {
     id: String(dto.id),
     projectId: dto.projectId ? String(dto.projectId) : "",
     batchId: dto.batchId ? `b-${dto.batchId}` : null,
     name: dto.fileName,
-    status: toAssetStatus(dto.approvalStatus, dto.imageQualityQcCheck),
+    status,
     fileType: mimeToFileType(dto.contentType, dto.fileName),
     sizeMb,
-    version: `v${dto.versionNumber ?? 1}`,
+    version,
     assignee: { name: assigneeName, initials: getInitials(assigneeName) },
     updatedAt: dto.createdAt ?? new Date().toISOString(),
     // Prefer the generated preview (small, web-friendly JPEG) over the full-size original —
@@ -134,6 +141,7 @@ function toProjectNode(node: ProjectTreeApiNode): ProjectNode {
     id: node.id,
     name: node.name,
     projectId: node.projectId,
+    type: node.type === "batch" ? "batch" : "project",
     children: (node.children ?? [])
       .filter((c) => c.type !== "asset")
       .map(toProjectNode),
@@ -322,5 +330,20 @@ export const assetService = {
    *  from its public storage URL (e.g. Open File) instead of through the backend. */
   async recordDownload(assetId: string): Promise<void> {
     await apiClient.post(`/uploads/${encodeURIComponent(assetId)}/record-download`).catch(() => undefined);
+  },
+
+  /** Moves a set of assets into a different batch/sub-batch in one call. */
+  async moveAssetsBulk(assetIds: string[], targetBatchNodeId: string): Promise<void> {
+    const batchId = targetBatchNodeId.startsWith("b-") ? targetBatchNodeId.slice(2) : targetBatchNodeId;
+    await apiClient.patch("/uploads/move-bulk", {
+      uploadIds: assetIds.map(Number),
+      batchId: Number(batchId),
+    });
+  },
+
+  /** Soft-deletes (moves to Trash) a set of assets — there's no bulk-delete endpoint, so this
+   *  fires one DELETE per id in parallel. */
+  async deleteAssetsBulk(assetIds: string[]): Promise<void> {
+    await Promise.all(assetIds.map((id) => apiClient.delete(`/uploads/${encodeURIComponent(id)}`)));
   },
 };

@@ -10,16 +10,16 @@ const APPROVED_META: StatusMeta = { label: "Approved", dotClass: "bg-emerald-500
 const REJECTED_META: StatusMeta = { label: "Rejected", dotClass: "bg-red-500", textClass: "text-red-500" };
 const LIVE_META: StatusMeta = { label: "Live", dotClass: "bg-blue-500", textClass: "text-blue-500" };
 const PENDING_META: StatusMeta = { label: "Pending", dotClass: "bg-amber-500", textClass: "text-amber-500" };
-const DRAFT_META: StatusMeta = { label: "Draft", dotClass: "bg-orange-500", textClass: "text-orange-500" };
+const IN_PRODUCTION_META: StatusMeta = { label: "In Production", dotClass: "bg-violet-500", textClass: "text-violet-500" };
 
-/** The backend's "draft" status covers two different situations: a v1 upload that's never been
- *  touched (shown as "Pending", matching the web app) and a v2+ asset that was locally edited
- *  and re-synced, which needs re-review (shown as "Draft"). */
-export function getStatusMeta(status: AssetStatus, version: string): StatusMeta {
+/** Anything not yet approved/rejected/live reads as "Pending" for an untouched v1, or
+ *  "In Production" for the established (VE) version — an editor is actively working on it,
+ *  distinct from a fresh upload nobody has looked at yet. */
+export function getStatusMeta(status: AssetStatus, established: boolean): StatusMeta {
   switch (status) {
     case "approved": return APPROVED_META;
     case "rejected": return REJECTED_META;
     case "live":     return LIVE_META;
-    default:         return version === "v1" ? PENDING_META : DRAFT_META;
+    default:         return established ? IN_PRODUCTION_META : PENDING_META;
   }
 }

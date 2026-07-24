@@ -37,9 +37,9 @@ const COLUMNS: { key: AssetSortKey; label: string }[] = [
 const DEFAULT_COLUMN_WIDTHS: Record<AssetSortKey, number> = {
   name: 280,
   status: 110,
-  fileType: 90,
+  fileType: 80,
   sizeMb: 90,
-  version: 110,
+  version: 70,
   assignee: 170,
   updatedAt: 170,
 };
@@ -152,8 +152,10 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
                 role="separator"
                 aria-orientation="vertical"
                 aria-label={`Resize ${col.label} column`}
-                className="absolute right-0 top-0 z-10 h-full w-1.5 cursor-col-resize select-none hover:bg-primary/50 active:bg-primary"
-              />
+                className="group/resize absolute right-0 top-0 z-10 flex h-full w-2.5 -translate-x-1/2 cursor-col-resize select-none items-center justify-center"
+              >
+                <span className="h-3.5 w-0.5 rounded-full bg-border transition-colors group-hover/resize:h-full group-hover/resize:bg-primary" />
+              </div>
             </TableHead>
           ))}
         </TableRow>
@@ -182,7 +184,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               </div>
             </TableCell>
             <TableCell>
-              <StatusBadge status={asset.status} version={asset.version} />
+              <StatusBadge status={asset.status} established={asset.established} />
             </TableCell>
             <TableCell>
               <FileTypeBadge fileType={asset.fileType} />
@@ -191,7 +193,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
             <TableCell className="text-muted-foreground">
               <div className="flex items-center gap-1.5">
                 {asset.version}
-                {asset.established && <EstablishedBadge />}
+                {asset.established && asset.version !== "VE" && <EstablishedBadge />}
               </div>
             </TableCell>
             <TableCell>

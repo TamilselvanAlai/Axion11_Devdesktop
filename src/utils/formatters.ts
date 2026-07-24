@@ -28,3 +28,12 @@ export function formatDuration(ms: number): string {
   const remHours = hours % 24;
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 }
+
+/** Formats a seconds duration as zero-padded "hh:mm:ss" — used for the "Production Time" total. */
+export function formatHhMmSs(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const hh = Math.floor(s / 3600);
+  const mm = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  return [hh, mm, ss].map((n) => String(n).padStart(2, "0")).join(":");
+}
