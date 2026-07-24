@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil, Layers } from "lucide-react";
+import { CheckCircle, Lock, Unlock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil, Layers } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
@@ -185,7 +185,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
             )}
             {detail.status !== "rejected" && (
               <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-muted-foreground">
-                <Lock className="size-2.5" /> {detail.locked ? "Locked" : "Unlocked"}
+                {detail.locked ? <Lock className="size-2.5" /> : <Unlock className="size-2.5" />} {detail.locked ? "Locked" : "Unlocked"}
               </span>
             )}
           </div>

@@ -20,6 +20,10 @@ interface AssetStoreState {
    *  highlight it even when it's not the node the current route is scoped to. */
   selectedAssetBatchId: string | null;
   multiSelectedIds: Set<string>;
+  /** Bumped whenever any asset finishes local-sync (see useWorkSessionTracking) — SyncStatusIcon
+   *  depends on this to re-check its file's local presence without polling. */
+  localSyncTick: number;
+  bumpLocalSyncTick: () => void;
   /** Scope backing the currently-displayed asset list, set by useAssets on every fetch —
    *  lets actions taken elsewhere (e.g. approve/reject in the detail panel) refresh the
    *  list without needing to know or re-derive the scope themselves. */
@@ -67,6 +71,8 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   selectedAssetId: null,
   selectedAssetBatchId: null,
   multiSelectedIds: new Set(),
+  localSyncTick: 0,
+  bumpLocalSyncTick: () => set((state) => ({ localSyncTick: state.localSyncTick + 1 })),
   currentScope: null,
   setProjectTree: (projectTree) => set({ projectTree }),
   refetchProjectTree: async () => {

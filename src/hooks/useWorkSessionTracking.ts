@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useAuthStore } from "@/store";
+import { useAuthStore, useAssetStore } from "@/store";
 import { workSessionService } from "@/services/workSession.service";
 import { localSyncService } from "@/services/localSync.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
@@ -44,6 +44,7 @@ export function useWorkSessionTracking() {
       .onSyncComplete((payload) => {
         workSessionService.recordEdit().catch(() => undefined);
         assetEditSessionService.end(payload.assetId).catch(() => undefined);
+        useAssetStore.getState().bumpLocalSyncTick();
       })
       .then((fn) => {
         if (cancelled) fn();

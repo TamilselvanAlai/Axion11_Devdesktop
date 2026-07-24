@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
+import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
@@ -181,6 +182,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
               >
                 <AssetThumbnail color={asset.thumbnailColor} />
                 <span className="min-w-0 flex-1 truncate font-medium">{asset.name}</span>
+                <SyncStatusIcon asset={asset} className="size-3.5" />
               </div>
             </TableCell>
             <TableCell>

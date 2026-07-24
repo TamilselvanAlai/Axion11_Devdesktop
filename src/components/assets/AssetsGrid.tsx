@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
+import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
@@ -99,7 +100,10 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
           </div>
 
           <div className="flex flex-col gap-2 p-3">
-            <p className="truncate text-sm font-semibold">{asset.name}</p>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold">{asset.name}</p>
+              <SyncStatusIcon asset={asset} className="size-3.5" />
+            </div>
 
             <div className="flex items-center justify-between gap-2">
               <StatusBadge status={asset.status} established={asset.established} />
