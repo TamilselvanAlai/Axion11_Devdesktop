@@ -1,4 +1,4 @@
-import { UploadCloud } from "lucide-react";
+import { Loader2, UploadCloud } from "lucide-react";
 import { AssetsToolbar } from "@/components/assets/AssetsToolbar";
 import { AssetsTable } from "@/components/assets/AssetsTable";
 import { AssetsGrid } from "@/components/assets/AssetsGrid";
@@ -23,13 +23,16 @@ function FolderTableSkeleton() {
 }
 
 export function ProjectDetailView({ projectId }: { projectId: string }) {
-  const { node, isFolder, assets, folderSummary, status } = useProjectView(projectId);
+  const { node, isFolder, assets, folderSummary, status, resolving } = useProjectView(projectId);
   const viewMode = useAssetStore((state) => state.viewMode);
   const projectTree = useAssetStore((state) => state.projectTree);
+  const uploading = useAssetStore((state) => (node ? state.uploadingBatches[node.id] : undefined));
   const { isDragOver, dropHandlers } = useFolderDropTarget(node ? toUploadTarget(node) : null);
 
   if (!node) {
-    return <ErrorState message="Project not found." />;
+    // The tree can briefly lag behind reality (e.g. right after this batch was just created) —
+    // show a loading state instead of a hard error while useProjectView retries.
+    return resolving ? <FolderTableSkeleton /> : <ErrorState message="Project not found." />;
   }
 
   const breadcrumbs = findAncestorPath(projectTree, projectId) ?? [node.name];
@@ -65,6 +68,14 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
             parentProjectId={node.projectId}
             assets={assets}
           />
+          {uploading && (
+            <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+              <Loader2 className="size-3.5 shrink-0 animate-spin" />
+              {uploading.phase === "uploading"
+                ? `Uploading ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`
+                : `Processing ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`}
+            </div>
+          )}
           {status === "loading" && assets.length === 0 ? (
             <AssetsSkeleton viewMode={viewMode} />
           ) : viewMode === "grid" ? (

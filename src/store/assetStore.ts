@@ -28,6 +28,12 @@ interface AssetStoreState {
    *  lets actions taken elsewhere (e.g. approve/reject in the detail panel) refresh the
    *  list without needing to know or re-derive the scope themselves. */
   currentScope: AssetScope | null;
+  /** Batch (tree node id, e.g. "b-12") -> in-flight upload state, so the folder currently
+   *  being uploaded into can show an immediate "Uploading…"/"Processing…" indicator instead of
+   *  looking unchanged until the next poll happens to land. Cleared once the batch's server-side
+   *  processing completes (or times out/errors) — see useFileUpload. */
+  uploadingBatches: Record<string, { total: number; phase: "uploading" | "processing" }>;
+  setUploadingBatch: (batchId: string, upload: { total: number; phase: "uploading" | "processing" } | null) => void;
   setProjectTree: (tree: ProjectNode[]) => void;
   /** Re-fetches the whole sidebar project tree — call after anything that changes its shape
    *  (e.g. a new batch/sub-folder created via drag-and-drop upload). */
@@ -76,6 +82,14 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   localSyncTick: 0,
   bumpLocalSyncTick: () => set((state) => ({ localSyncTick: state.localSyncTick + 1 })),
   currentScope: null,
+  uploadingBatches: {},
+  setUploadingBatch: (batchId, upload) =>
+    set((state) => {
+      const next = { ...state.uploadingBatches };
+      if (upload) next[batchId] = upload;
+      else delete next[batchId];
+      return { uploadingBatches: next };
+    }),
   setProjectTree: (projectTree) => set({ projectTree }),
   refetchProjectTree: async () => {
     const projectTree = await assetService.getProjectTree();

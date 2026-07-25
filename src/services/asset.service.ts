@@ -225,8 +225,9 @@ export const assetService = {
 
   /** Creates a brand-new batch (sub-folder) with the given files in one call — this is what a
    *  dropped OS folder maps to: the folder becomes a batch named after it, nested under
-   *  wherever it was dropped, instead of its files being flattened into the drop target. */
-  async createBatchWithFiles(name: string, files: File[], target: { type: "project" | "batch"; id: string; rootProjectId: string }): Promise<void> {
+   *  wherever it was dropped, instead of its files being flattened into the drop target.
+   *  Returns the created batch so the caller can poll its processing status. */
+  async createBatchWithFiles(name: string, files: File[], target: { type: "project" | "batch"; id: string; rootProjectId: string }): Promise<BatchApiDto> {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("projectId", target.rootProjectId);
@@ -235,7 +236,17 @@ export const assetService = {
       formData.append("parentBatchId", parentBatchId);
     }
     for (const file of files) formData.append("files", file, file.name);
-    await apiClient.post("/batches", formData, { timeout: 180000 });
+    const { data } = await apiClient.post<BatchApiDto>("/batches", formData, { timeout: 180000 });
+    return data;
+  },
+
+  /** Current processing status of a batch ("COMPLETED" once uploads finish server-side
+   *  processing — thumbnailing, AI tagging, etc.) — used to poll after an upload is accepted,
+   *  since the accept response doesn't mean the rows/previews exist yet. */
+  async getBatchUploadStatus(batchId: string): Promise<string | null> {
+    const numericId = batchId.startsWith("b-") ? batchId.slice(2) : batchId;
+    const { data } = await apiClient.get<BatchApiDto>(`/batches/${numericId}`);
+    return data.uploadStatus;
   },
 
   async getFolderSummary(nodeId: string): Promise<ProjectSummary[]> {
