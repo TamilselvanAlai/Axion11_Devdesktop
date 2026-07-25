@@ -4,6 +4,7 @@ import { AssetsTable } from "@/components/assets/AssetsTable";
 import { AssetsGrid } from "@/components/assets/AssetsGrid";
 import { ProjectFolderTable } from "@/components/assets/ProjectFolderTable";
 import { AssetsSkeleton } from "@/components/assets/AssetsSkeleton";
+import { BulkActionBar } from "@/components/assets/BulkActionBar";
 import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectView } from "@/hooks/useProjectView";
@@ -87,6 +88,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
           ) : (
             <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} />
           )}
+          <BulkActionBar />
         </>
       )}
     </div>
