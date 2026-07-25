@@ -48,13 +48,14 @@ export function useFileUpload() {
     if (files.length === 0) return;
     const label = `${files.length} file${files.length === 1 ? "" : "s"}`;
     const toastId = toast.loading(`Uploading ${label}…`);
-    if (target.type === "batch") setUploadingBatch(target.id, { total: files.length, phase: "uploading" });
+    const fileNames = files.map((f) => f.name);
+    if (target.type === "batch") setUploadingBatch(target.id, { total: files.length, phase: "uploading", fileNames });
     try {
       await assetService.uploadFiles(files, target);
       toast.success(`Uploaded ${label}`, { id: toastId });
       refetchAssets();
       if (target.type === "batch") {
-        setUploadingBatch(target.id, { total: files.length, phase: "processing" });
+        setUploadingBatch(target.id, { total: files.length, phase: "processing", fileNames });
         pollBatchUntilComplete(target.id);
       }
     } catch (err) {
@@ -71,7 +72,7 @@ export function useFileUpload() {
       const batch = await assetService.createBatchWithFiles(folder.name, folder.files, target);
       const newBatchId = `b-${batch.id}`;
       toast.success(`Created "${folder.name}"`, { id: toastId });
-      setUploadingBatch(newBatchId, { total: folder.files.length, phase: "processing" });
+      setUploadingBatch(newBatchId, { total: folder.files.length, phase: "processing", fileNames: folder.files.map((f) => f.name) });
       await refetchProjectTree();
       refetchAssets();
       pollBatchUntilComplete(newBatchId);

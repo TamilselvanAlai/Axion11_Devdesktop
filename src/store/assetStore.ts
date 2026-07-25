@@ -30,10 +30,12 @@ interface AssetStoreState {
   currentScope: AssetScope | null;
   /** Batch (tree node id, e.g. "b-12") -> in-flight upload state, so the folder currently
    *  being uploaded into can show an immediate "Uploading…"/"Processing…" indicator instead of
-   *  looking unchanged until the next poll happens to land. Cleared once the batch's server-side
+   *  looking unchanged until the next poll happens to land. `fileNames` (only populated for the
+   *  "uploading" phase, before any server-side rows can exist yet) drives per-file placeholder
+   *  tiles in the grid/table — see AssetsGrid/AssetsTable. Cleared once the batch's server-side
    *  processing completes (or times out/errors) — see useFileUpload. */
-  uploadingBatches: Record<string, { total: number; phase: "uploading" | "processing" }>;
-  setUploadingBatch: (batchId: string, upload: { total: number; phase: "uploading" | "processing" } | null) => void;
+  uploadingBatches: Record<string, { total: number; phase: "uploading" | "processing"; fileNames: string[] }>;
+  setUploadingBatch: (batchId: string, upload: { total: number; phase: "uploading" | "processing"; fileNames: string[] } | null) => void;
   setProjectTree: (tree: ProjectNode[]) => void;
   /** Re-fetches the whole sidebar project tree — call after anything that changes its shape
    *  (e.g. a new batch/sub-folder created via drag-and-drop upload). */

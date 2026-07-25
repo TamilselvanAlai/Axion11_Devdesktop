@@ -27,6 +27,10 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
   const viewMode = useAssetStore((state) => state.viewMode);
   const projectTree = useAssetStore((state) => state.projectTree);
   const uploading = useAssetStore((state) => (node ? state.uploadingBatches[node.id] : undefined));
+  // Only while the request is actually in flight — once we're "processing", the batch has
+  // been accepted server-side and real rows will start replacing these via the next poll, so
+  // placeholders and real rows would otherwise both show for the same files.
+  const uploadingFileNames = uploading?.phase === "uploading" ? uploading.fileNames : [];
   const { isDragOver, dropHandlers } = useFolderDropTarget(node ? toUploadTarget(node) : null);
 
   if (!node) {
@@ -79,9 +83,9 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
           {status === "loading" && assets.length === 0 ? (
             <AssetsSkeleton viewMode={viewMode} />
           ) : viewMode === "grid" ? (
-            <AssetsGrid assets={assets} />
+            <AssetsGrid assets={assets} uploadingFiles={uploadingFileNames} />
           ) : (
-            <AssetsTable assets={assets} />
+            <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} />
           )}
         </>
       )}

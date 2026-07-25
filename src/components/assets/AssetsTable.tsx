@@ -14,6 +14,7 @@ import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { AssetUploadingTableRow } from "@/components/assets/AssetsSkeleton";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
@@ -61,7 +62,7 @@ function formatSize(mb: number) {
   return mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${mb} MB`;
 }
 
-export function AssetsTable({ assets }: { assets: Asset[] }) {
+export function AssetsTable({ assets, uploadingFiles = [] }: { assets: Asset[]; uploadingFiles?: string[] }) {
   const {
     sortKey,
     sortAsc,
@@ -110,7 +111,7 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
     window.addEventListener("mouseup", handleUp);
   }
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && uploadingFiles.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
         <p className="text-sm font-medium">No assets here yet</p>
@@ -162,6 +163,9 @@ export function AssetsTable({ assets }: { assets: Asset[] }) {
         </TableRow>
       </TableHeader>
       <TableBody>
+        {uploadingFiles.map((name, i) => (
+          <AssetUploadingTableRow key={`uploading-${i}-${name}`} name={name} />
+        ))}
         {rows.map((asset, index) => (
           <TableRow
             key={asset.id}

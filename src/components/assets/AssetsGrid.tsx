@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { AssetUploadingGridTile } from "@/components/assets/AssetsSkeleton";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { cn } from "@/lib/utils";
@@ -32,7 +33,7 @@ function formatSize(sizeMb: number) {
   return sizeMb >= 1000 ? `${(sizeMb / 1000).toFixed(1)} GB` : `${Math.round(sizeMb)} MB`;
 }
 
-export function AssetsGrid({ assets }: { assets: Asset[] }) {
+export function AssetsGrid({ assets, uploadingFiles = [] }: { assets: Asset[]; uploadingFiles?: string[] }) {
   const { selectedAssetId, selectAssetAndReveal, sortKey, sortAsc, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
     useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
@@ -52,7 +53,7 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
     lastClickedIndex.current = index;
   }
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && uploadingFiles.length === 0) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
         <p className="text-sm font-medium">No assets here yet</p>
@@ -63,6 +64,9 @@ export function AssetsGrid({ assets }: { assets: Asset[] }) {
 
   return (
     <div className="grid grid-cols-2 gap-4 @min-[560px]:grid-cols-3 @min-[820px]:grid-cols-4 @min-[1080px]:grid-cols-5">
+      {uploadingFiles.map((name, i) => (
+        <AssetUploadingGridTile key={`uploading-${i}-${name}`} name={name} />
+      ))}
       {rows.map((asset, index) => {
         const checked = multiSelectedIds.has(asset.id);
         return (

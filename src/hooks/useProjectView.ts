@@ -66,6 +66,34 @@ export function useProjectView(projectId: string) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node?.id, isFolder, projectId, setAssets, setFolderSummary, resetForNavigation]);
 
+  // Keeps this node's data live when another client (e.g. the website) uploads while this page
+  // sits open — without this, the view only ever refreshes on navigation, this instance's own
+  // uploads, or a manual reload, so uploads made elsewhere silently never appear here.
+  useEffect(() => {
+    if (!node) return;
+    const REFRESH_INTERVAL_MS = 20_000;
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isFolder) {
+        assetService.getFolderSummary(projectId).then(setFolderSummary);
+      } else {
+        assetService.listAssets({ projectId }).then(setAssets);
+      }
+    };
+    const interval = setInterval(refresh, REFRESH_INTERVAL_MS);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", refresh);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node?.id, isFolder, projectId, setAssets, setFolderSummary]);
+
   // A locally-edited file just got auto-uploaded as a new version — refresh the list so
   // it shows up (updated size/version) without the user having to navigate away and back.
   useEffect(() => {
