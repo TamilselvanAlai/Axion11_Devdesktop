@@ -72,7 +72,7 @@ export function BulkActionBar() {
     <>
       <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center">
         <div className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg ring-1 ring-foreground/10">
-          <span className="whitespace-nowrap text-xs font-medium">
+          <span className="whitespace-nowrap text-sm font-medium text-primary">
             {selectedIds.length} selected
           </span>
 
@@ -97,22 +97,22 @@ export function BulkActionBar() {
           <div className="h-4 w-px bg-border" />
 
           <Button
-            size="icon-xs"
+            size="xs"
             variant="destructive"
             disabled={busy}
             aria-label="Delete selected assets"
             onClick={() => setConfirmDeleteOpen(true)}
           >
-            <Trash2 />
+            <Trash2 /> Delete
           </Button>
 
           <Button
-            size="icon-xs"
+            size="xs"
             variant="ghost"
             aria-label="Clear selection"
             onClick={() => clearMultiSelect()}
           >
-            <X />
+            <X /> Clear
           </Button>
         </div>
       </div>

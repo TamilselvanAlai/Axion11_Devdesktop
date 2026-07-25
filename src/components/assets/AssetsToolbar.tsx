@@ -47,8 +47,7 @@ function folderFromFileList(fileList: FileList): DroppedFolder | null {
 }
 
 export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, parentProjectId, assets = [] }: AssetsToolbarProps) {
-  const { viewMode, setViewMode, setAssets, filters, sortKey, sortAsc, toggleSort, multiSelectedIds, clearMultiSelect } =
-    useAssetStore();
+  const { viewMode, setViewMode, setAssets, filters, sortKey, sortAsc, toggleSort } = useAssetStore();
   const [filterOpen, setFilterOpen] = useState(false);
   const [cloudBrowserOpen, setCloudBrowserOpen] = useState(false);
   const { uploadFiles, uploadFolder } = useFileUpload();
@@ -105,15 +104,6 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, paren
           </Fragment>
         ))}
       </div>
-
-      {multiSelectedIds.size > 0 && (
-        <div className="flex items-center gap-1.5 rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
-          {multiSelectedIds.size} selected
-          <button type="button" onClick={clearMultiSelect} className="text-primary/70 hover:text-primary">
-            Clear
-          </button>
-        </div>
-      )}
 
       <div className="h-4 w-px bg-border" />
 

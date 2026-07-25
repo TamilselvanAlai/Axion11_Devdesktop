@@ -41,7 +41,9 @@ interface AssetStoreState {
   setFolderSummary: (summary: ProjectSummary[]) => void;
   setStatus: (status: LoadingState) => void;
   /** Marks loading without clearing the current list — the previously-viewed content stays on
-   *  screen until the new fetch resolves and replaces it, instead of flashing empty in between. */
+   *  screen until the new fetch resolves and replaces it, instead of flashing empty in between.
+   *  Also drops the previous scope's asset selection, so the sidebar tree and detail panel don't
+   *  keep showing a stale highlight/asset from the folder you just navigated away from. */
   resetForNavigation: () => void;
   setViewMode: (mode: AssetViewMode) => void;
   toggleSort: (key: AssetSortKey) => void;
@@ -90,7 +92,8 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   addAssets: (newAssets) => set((state) => ({ assets: [...newAssets, ...state.assets] })),
   setFolderSummary: (folderSummary) => set({ folderSummary, status: "success" }),
   setStatus: (status) => set({ status }),
-  resetForNavigation: () => set({ status: "loading" }),
+  resetForNavigation: () =>
+    set({ status: "loading", selectedAssetId: null, selectedAssetBatchId: null, multiSelectedIds: new Set() }),
   setViewMode: (viewMode) => set({ viewMode }),
   toggleSort: (key) =>
     set((state) => ({

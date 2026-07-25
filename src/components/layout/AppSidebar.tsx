@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, Zap, Cloud, HardDrive } from "lucide-react";
+import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, GripVertical, Zap, Cloud, HardDrive } from "lucide-react";
 import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
 import { ProjectTree } from "@/components/navigation/ProjectTree";
 import { useProjectTree } from "@/hooks/useProjectTree";
@@ -39,6 +39,12 @@ const SYNC_TEXT_CLASS: Record<string, string> = {
   error: "text-danger",
 };
 
+const COLLAPSED_WIDTH = 56;
+const DEFAULT_WIDTH = 216;
+const MIN_WIDTH = 180;
+const MAX_WIDTH = 300;
+const COLLAPSE_THRESHOLD = 130;
+
 export function AppSidebar() {
   const projectTree = useProjectTree();
   const { status: syncStatus } = useCloudSync();
@@ -52,10 +58,36 @@ export function AppSidebar() {
   const cachePercent = Math.round((cacheUsageGb / storageTotalGb) * 100);
 
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
   const [flyoutOpen, setFlyoutOpen] = useState(false);
   const [flyoutTop, setFlyoutTop] = useState(0);
   const projectsRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<number | undefined>(undefined);
+
+  function handleResizeStart(e: React.MouseEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = collapsed ? COLLAPSED_WIDTH : sidebarWidth;
+    setIsResizing(true);
+
+    function handleMove(moveEvent: MouseEvent) {
+      const next = startWidth + (moveEvent.clientX - startX);
+      if (next < COLLAPSE_THRESHOLD) {
+        setCollapsed(true);
+      } else {
+        setSidebarWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, next)));
+        setCollapsed(false);
+      }
+    }
+    function handleUp() {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    }
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }
 
   function openFlyout() {
     if (!collapsed) return;
@@ -74,8 +106,8 @@ export function AppSidebar() {
 
   return (
     <aside
-      className="relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200 md:flex"
-      style={{ width: collapsed ? 56 : 216 }}
+      className={`relative hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex ${isResizing ? "" : "transition-all duration-200"}`}
+      style={{ width: collapsed ? COLLAPSED_WIDTH : sidebarWidth }}
     >
       <button
         type="button"
@@ -85,6 +117,18 @@ export function AppSidebar() {
       >
         {collapsed ? <ChevronRight className="size-2.5" /> : <ChevronLeft className="size-2.5" />}
       </button>
+
+      <div
+        onMouseDown={handleResizeStart}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        className="group/resize absolute right-0 top-0 z-5 flex h-full w-2 -translate-x-1/2 cursor-col-resize select-none items-center justify-center"
+      >
+        <span className="flex size-4 items-center justify-center rounded-sm bg-sidebar text-muted-foreground opacity-0 transition-opacity group-hover/resize:opacity-100">
+          <GripVertical className="size-3" />
+        </span>
+      </div>
 
       <div className={`flex h-11 shrink-0 items-center gap-2 border-b border-sidebar-border px-4 ${collapsed ? "justify-center px-0" : ""}`}>
         <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-md shadow-primary/30">
@@ -106,7 +150,7 @@ export function AppSidebar() {
           <div ref={projectsRef} onMouseEnter={openFlyout} onMouseLeave={scheduleCloseFlyout}>
             <SidebarNavItem to={ROUTES.projects} icon={FolderKanban} label="Projects" collapsed={collapsed} />
             {!collapsed && (
-              <div className="mt-0.5">
+              <div className="mt-0.5 overflow-x-auto">
                 <ProjectTree nodes={projectTree} />
               </div>
             )}
@@ -140,7 +184,9 @@ export function AppSidebar() {
           className="fixed z-30 w-56 rounded-lg border border-sidebar-border bg-popover p-2 shadow-xl"
         >
           <p className="px-2 pb-1.5 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/40">Projects</p>
-          <ProjectTree nodes={projectTree} />
+          <div className="max-h-[60vh] overflow-auto">
+            <ProjectTree nodes={projectTree} />
+          </div>
         </div>
       )}
 

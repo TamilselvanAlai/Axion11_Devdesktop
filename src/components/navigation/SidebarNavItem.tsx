@@ -17,8 +17,8 @@ export function SidebarNavItem({ to, icon: Icon, label, badge, collapsed }: Side
       title={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
-          "flex items-center rounded-lg text-sm font-semibold transition-colors",
-          collapsed ? "mx-auto size-9 justify-center" : "gap-2.5 px-2.5 py-2",
+          "flex items-center rounded-lg text-sm font-medium transition-colors",
+          collapsed ? "mx-auto size-8 justify-center" : "gap-2 px-2.5 py-1.5",
           isActive
             ? "bg-primary/15 text-primary"
             : "text-sidebar-foreground/50 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/80"
@@ -27,7 +27,7 @@ export function SidebarNavItem({ to, icon: Icon, label, badge, collapsed }: Side
     >
       {({ isActive }) => (
         <>
-          <Icon className={cn("size-4 shrink-0", !isActive && "text-sidebar-foreground/50")} />
+          <Icon className={cn("size-3.5 shrink-0", !isActive && "text-sidebar-foreground/50")} />
           {!collapsed && (
             <>
               <span className="flex-1">{label}</span>

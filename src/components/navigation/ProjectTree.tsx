@@ -25,7 +25,7 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
         onKeyDown={(e) => e.key === "Enter" && navigate(`${ROUTES.projects}/${node.id}`)}
         style={{ paddingLeft: 8 + depth * 14 }}
         className={cn(
-          "flex items-center gap-1.5 rounded-lg py-1.5 pr-2 text-sm font-medium transition-colors cursor-pointer",
+          "flex items-center gap-1.5 rounded-lg py-1 pr-2 text-sm font-medium transition-colors cursor-pointer",
           isDragOver
             ? "bg-primary/20 ring-1 ring-inset ring-primary"
             : isActive
@@ -50,7 +50,7 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
           <span className="size-4 shrink-0" />
         )}
         <Folder className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-info")} />
-        <span className="truncate">{node.name}</span>
+        <span className="whitespace-nowrap">{node.name}</span>
       </div>
 
       {hasChildren && (
