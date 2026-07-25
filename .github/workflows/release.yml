@@ -58,16 +58,18 @@ jobs:
           # base64-encoded contents of the .pfx file.
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-          # macOS signing + notarization — only set once there's a real Apple Developer
-          # Program membership + "Developer ID Application" cert. Left unset (empty),
-          # tauri-action skips signing and produces an unsigned .app instead of failing
-          # the build — users bypass Gatekeeper via right-click > Open, or `xattr -cr`.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing + notarization — intentionally omitted for now. Tauri's bundler
+          # checks env::var_os(), which returns Some("") for a var that's *set but empty* —
+          # so defining these keys at all (even as "${{ secrets.APPLE_CERTIFICATE }}" when the
+          # secret doesn't exist) makes it try and fail to import an empty keychain cert.
+          # Once there's a real Apple Developer Program "Developer ID Application" cert, add
+          # these repo secrets AND uncomment the six lines below together:
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Axion VisualOps v__VERSION__"
