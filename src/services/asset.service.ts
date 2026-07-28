@@ -249,19 +249,22 @@ export const assetService = {
     return data.uploadStatus;
   },
 
-  async getFolderSummary(nodeId: string): Promise<ProjectSummary[]> {
+  /** Takes the already-resolved tree node (not just its id) so the batch case can read its
+   *  root project id straight off the tree — the tree already carries it (see ProjectNode.
+   *  projectId) — instead of an extra `GET /batches/{id}` round trip before this folder's
+   *  contents can even start loading. */
+  async getFolderSummary(node: ProjectNode): Promise<ProjectSummary[]> {
     // Tree node ids are prefixed ("p-1" for projects, "b-5" for batches/folders) —
     // the backend only accepts a raw numeric projectId, so resolve accordingly.
     let numericProjectId: number;
     let parentBatchId: number | null;
 
-    if (nodeId.startsWith("b-")) {
-      const batchId = Number(nodeId.slice(2));
-      const { data: batch } = await apiClient.get<BatchApiDto>(`/batches/${batchId}`);
-      numericProjectId = batch.projectId ?? batchId;
+    if (node.id.startsWith("b-")) {
+      const batchId = Number(node.id.slice(2));
+      numericProjectId = node.projectId ? Number(node.projectId.slice(2)) : batchId;
       parentBatchId = batchId;
     } else {
-      numericProjectId = Number(nodeId.startsWith("p-") ? nodeId.slice(2) : nodeId);
+      numericProjectId = Number(node.id.startsWith("p-") ? node.id.slice(2) : node.id);
       parentBatchId = null;
     }
 

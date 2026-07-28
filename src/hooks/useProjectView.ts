@@ -55,7 +55,7 @@ export function useProjectView(projectId: string) {
     resetForNavigation();
 
     if (node.children?.length) {
-      assetService.getFolderSummary(projectId).then(setFolderSummary);
+      assetService.getFolderSummary(node).then(setFolderSummary);
     } else {
       assetService.listAssets({ projectId }).then(setAssets);
     }
@@ -75,7 +75,7 @@ export function useProjectView(projectId: string) {
     const refresh = () => {
       if (document.visibilityState !== "visible") return;
       if (isFolder) {
-        assetService.getFolderSummary(projectId).then(setFolderSummary);
+        assetService.getFolderSummary(node).then(setFolderSummary);
       } else {
         assetService.listAssets({ projectId }).then(setAssets);
       }

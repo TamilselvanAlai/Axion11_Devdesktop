@@ -9,6 +9,8 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { ROUTES } from "@/constants/routes";
+import { useAssetStore } from "@/store";
+import { findAncestorIds } from "@/utils/assetPath";
 import type { ProjectSummary } from "@/types";
 
 function formatDate(iso: string) {
@@ -19,6 +21,7 @@ function formatDate(iso: string) {
 
 export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
   const navigate = useNavigate();
+  const { projectTree, expandAncestors } = useAssetStore();
 
   return (
     <Table>
@@ -34,7 +37,13 @@ export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
           <TableRow
             key={folder.id}
             className="cursor-pointer"
-            onClick={() => navigate(`${ROUTES.projects}/${folder.id}`)}
+            onClick={() => {
+              // Reveal this folder in the sidebar tree the same way clicking an asset does —
+              // expand every ancestor so the newly-active node isn't hidden under a collapsed
+              // parent, instead of relying on the route param to highlight it.
+              expandAncestors(findAncestorIds(projectTree, folder.id) ?? [folder.id]);
+              navigate(`${ROUTES.projects}/${folder.id}`);
+            }}
           >
             <TableCell>
               <span className="flex items-center gap-2 font-medium">
