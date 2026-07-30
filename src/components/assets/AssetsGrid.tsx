@@ -21,6 +21,7 @@ const TYPE_BADGE_CLASS: Record<AssetFileType, string> = {
   TIFF: "bg-blue-500/15 text-blue-400",
   PSD: "bg-amber-500/15 text-amber-400",
   CR3: "bg-emerald-500/15 text-emerald-400",
+  HEIC: "bg-emerald-500/15 text-emerald-400",
   JPG: "bg-violet-500/15 text-violet-400",
   PNG: "bg-violet-500/15 text-violet-400",
   WEBP: "bg-violet-500/15 text-violet-400",

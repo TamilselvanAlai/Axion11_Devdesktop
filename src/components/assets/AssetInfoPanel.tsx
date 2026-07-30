@@ -79,8 +79,13 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       setLocalInfo(null);
       return;
     }
+    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+    if (relativePath === null) {
+      // Tree hasn't loaded this batch yet — leave localInfo as-is rather than reporting "not
+      // synced" against a path that doesn't match what's actually on disk.
+      return;
+    }
     let cancelled = false;
-    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename, detail.id);
     localSyncService.getLocalAssetInfo({ relativePath, mountRoot: mountPoint }).then((info) => {
       if (!cancelled) setLocalInfo(info);
     });
@@ -104,9 +109,14 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       return;
     }
 
+    const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename);
+    if (relativePath === null) {
+      toast.error("Project data is still loading — try again in a moment.");
+      return;
+    }
+
     setOpening(true);
     try {
-      const relativePath = buildAssetRelativePath(projectTree, detail.batchId, detail.filename, detail.id);
       const result = await localSyncService.openAndSync({
         downloadUrl: detail.downloadUrl,
         relativePath,

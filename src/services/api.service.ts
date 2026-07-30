@@ -29,8 +29,16 @@ apiClient.interceptors.response.use(
       }
     }
 
-    const message =
-      error?.response?.data?.message ?? error?.message ?? "Something went wrong talking to the server.";
+    // Cloud Run resets the connection before a 413's response body is readable, so an oversized
+    // upload usually never reaches us as a real error.response either — axios reports it as a
+    // bare "Network Error" indistinguishable from an actual connectivity failure. That ambiguity
+    // is specific to requests carrying a file body, so only hint at "too large" there.
+    const isUpload = error?.config?.data instanceof FormData;
+    const isTooLarge = error?.response?.status === 413 || (isUpload && !error?.response);
+
+    const message = isTooLarge
+      ? "Upload failed — this file may be too large for a single upload, or there's a connection problem. Try a smaller file or check your connection."
+      : error?.response?.data?.message ?? error?.message ?? "Something went wrong talking to the server.";
     return Promise.reject(new Error(message));
   }
 );

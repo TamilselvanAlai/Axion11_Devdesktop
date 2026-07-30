@@ -9,9 +9,9 @@ export function useProjectTree() {
   const { projectTree, setProjectTree } = useAssetStore();
 
   useEffect(() => {
-    assetService.getProjectTree().then(setProjectTree);
+    assetService.getProjectTree().then(setProjectTree).catch((e) => console.error("Failed to load project tree:", e));
     function onFocus() {
-      assetService.getProjectTree().then(setProjectTree);
+      assetService.getProjectTree().then(setProjectTree).catch((e) => console.error("Failed to load project tree:", e));
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);

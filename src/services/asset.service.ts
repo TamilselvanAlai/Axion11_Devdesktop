@@ -24,6 +24,7 @@ function mimeToFileType(mime: string | null, fileName?: string | null): AssetFil
   if (m.includes("photoshop") || m.includes("psd")) return "PSD";
   if (m === "image/tiff" || m.includes("tiff")) return "TIFF";
   if (m.includes("cr3")) return "CR3";
+  if (m.includes("heic") || m.includes("heif")) return "HEIC";
   if (m === "image/jpeg" || m === "image/jpg" || m.includes("jpeg")) return "JPG";
   if (m.includes("png")) return "PNG";
   if (m.includes("webp")) return "WEBP";
@@ -39,6 +40,8 @@ function mimeToFileType(mime: string | null, fileName?: string | null): AssetFil
     case "tif":
     case "tiff":         return "TIFF";
     case "cr3":          return "CR3";
+    case "heic":
+    case "heif":         return "HEIC";
     case "jpg":
     case "jpeg":         return "JPG";
     case "png":          return "PNG";
@@ -148,6 +151,51 @@ function toProjectNode(node: ProjectTreeApiNode): ProjectNode {
   };
 }
 
+/** Uploads one file via a GCS signed URL (PUT straight to storage, bypassing the backend), then
+ *  tells the backend about it via the small JSON /uploads/confirm call. Falls back to a direct
+ *  multipart POST through the backend if signed-URL generation isn't available (e.g. local dev
+ *  without GCS service-account credentials) — same fallback the web app's uploader already uses. */
+async function uploadOneFile(file: File, target: { batchId?: string; projectId?: string }): Promise<void> {
+  const contentType = file.type || "application/octet-stream";
+
+  try {
+    const { data: signed } = await apiClient.post<{ signedUrl?: string; gcsFileName?: string }>(
+      "/uploads/signed-url",
+      { fileName: file.name, contentType }
+    );
+    if (signed.signedUrl && signed.gcsFileName) {
+      const putResponse = await fetch(signed.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": contentType },
+        body: file,
+      });
+      if (!putResponse.ok) {
+        throw new Error(`Upload to storage failed with status ${putResponse.status}`);
+      }
+      await apiClient.post("/uploads/confirm", {
+        gcsFileName: signed.gcsFileName,
+        originalFileName: file.name,
+        contentType,
+        fileSize: file.size,
+        projectId: target.projectId ? Number(target.projectId) : undefined,
+        batchId: target.batchId ? Number(target.batchId) : undefined,
+      });
+      return;
+    }
+  } catch (err) {
+    console.warn(`Signed-URL upload failed for "${file.name}", falling back to direct upload:`, err);
+  }
+
+  const formData = new FormData();
+  formData.append("files", file, file.name);
+  if (target.batchId) {
+    await apiClient.post(`/batches/upload/${encodeURIComponent(target.batchId)}`, formData, { timeout: 120000 });
+  } else if (target.projectId) {
+    formData.append("projectId", target.projectId);
+    await apiClient.post("/uploads", formData, { timeout: 120000 });
+  }
+}
+
 // ── Public service ────────────────────────────────────────────────────────
 
 export const assetService = {
@@ -207,19 +255,29 @@ export const assetService = {
 
   /** Uploads real files to a project or batch (tree node id decides which endpoint/param shape
    *  the backend expects). Batch uploads process asynchronously on the server — the response
-   *  confirms the request was accepted, not that the rows exist yet. */
+   *  confirms the request was accepted, not that the rows exist yet.
+   *
+   *  Each file goes up individually via a GCS signed URL rather than as raw bytes through the
+   *  backend: Cloud Run hard-caps request bodies at ~32MB, and either one large PSD/TIFF master
+   *  or several files bundled into a single multipart request can exceed that and fail with a
+   *  413 (which surfaces to the browser as an opaque "Network Error" rather than a real status,
+   *  since Cloud Run resets the connection before a response body is readable). Falls back to a
+   *  direct multipart POST per file only if signed-URL generation itself is unavailable (e.g.
+   *  local dev without GCS service-account credentials). */
   async uploadFiles(files: File[], target: { type: "project" | "batch"; id: string }): Promise<void> {
     if (files.length === 0) return;
-    const formData = new FormData();
-    for (const file of files) formData.append("files", file, file.name);
 
     if (target.type === "batch") {
       const batchId = target.id.startsWith("b-") ? target.id.slice(2) : target.id;
-      await apiClient.post(`/batches/upload/${encodeURIComponent(batchId)}`, formData, { timeout: 120000 });
+      await apiClient.post(`/batches/${encodeURIComponent(batchId)}/start-upload`, null, { params: { total: files.length } });
+      for (const file of files) {
+        await uploadOneFile(file, { batchId });
+      }
     } else {
       const projectId = target.id.startsWith("p-") ? target.id.slice(2) : target.id;
-      formData.append("projectId", projectId);
-      await apiClient.post("/uploads", formData, { timeout: 120000 });
+      for (const file of files) {
+        await uploadOneFile(file, { projectId });
+      }
     }
   },
 

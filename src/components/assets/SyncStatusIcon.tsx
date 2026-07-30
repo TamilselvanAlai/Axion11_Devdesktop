@@ -19,8 +19,14 @@ export function SyncStatusIcon({ asset, className }: { asset: Asset; className?:
       setSynced(null);
       return;
     }
+    const relativePath = buildAssetRelativePath(projectTree, asset.batchId, asset.name);
+    if (relativePath === null) {
+      // Tree hasn't loaded this batch yet (e.g. right after a fresh app start) — leave the
+      // icon in its current/unknown state rather than reporting "not synced" against a path
+      // that doesn't match what's actually on disk.
+      return;
+    }
     let cancelled = false;
-    const relativePath = buildAssetRelativePath(projectTree, asset.batchId, asset.name, asset.id);
     localSyncService.getLocalAssetInfo({ relativePath, mountRoot: mountPoint }).then((info) => {
       if (!cancelled) setSynced(info !== null);
     });

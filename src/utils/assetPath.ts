@@ -14,16 +14,14 @@ export function findAncestorPath(nodes: ProjectNode[], targetId: string, trail: 
   return null;
 }
 
-/** Mirrors the project tree's folder names into a local relative path for a downloaded asset,
- *  nested one level under the asset's own id. Versions of the same asset share the same
- *  filename (the backend keeps it identical across a version chain), so without the id segment
- *  every version would resolve to the same local path — Open File/Retouch would then always
- *  reopen whichever version was first downloaded instead of the one currently selected, since
- *  the download step treats an existing local file as "already have it, don't refetch". */
-export function buildAssetRelativePath(tree: ProjectNode[], batchNodeId: string, filename: string, assetId: string): string {
+/** Mirrors the project tree's folder names into a local relative path for a downloaded asset.
+ *  Returns null if batchNodeId isn't found in tree (e.g. the tree hasn't loaded yet after a
+ *  fresh app start) — callers must not fall back to a bare filename in that case, since that
+ *  would silently produce a different path than the one used when the asset was downloaded. */
+export function buildAssetRelativePath(tree: ProjectNode[], batchNodeId: string, filename: string): string | null {
   const ancestors = findAncestorPath(tree, batchNodeId);
-  const folders = ancestors ?? [];
-  return [...folders, assetId, filename].join("/");
+  if (!ancestors) return null;
+  return [...ancestors, filename].join("/");
 }
 
 /** Flattens the tree into a pickable list of batch/sub-batch targets (excludes project-root

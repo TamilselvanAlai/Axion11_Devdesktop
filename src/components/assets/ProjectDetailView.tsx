@@ -52,7 +52,8 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
     let cancelled = false;
     const relativePaths = assets
       .filter((a) => a.batchId)
-      .map((a) => buildAssetRelativePath(projectTree, a.batchId!, a.name, a.id));
+      .map((a) => buildAssetRelativePath(projectTree, a.batchId!, a.name))
+      .filter((p): p is string => p !== null);
     localSyncService.reconcileLocalAssets({ relativePaths, mountRoot: mountPoint }).then((adopted) => {
       if (!cancelled && adopted > 0) bumpLocalSyncTick();
     });
