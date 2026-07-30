@@ -1,14 +1,15 @@
 import { toast } from "sonner";
 import { assetService } from "@/services/asset.service";
+import { subscribeToBatchStatus } from "@/services/batchEvents";
 import { useAssetStore } from "@/store";
 import type { DroppedContents, DroppedFolder, UploadTarget } from "@/utils/dragDropFiles";
 import { confirmZipUpload } from "@/utils/confirmZipUpload";
 import { batchNameFromZip, extractZipToFiles } from "@/utils/zipUpload";
 
-/** How often to re-check a batch's processing status, and how long to keep trying before
- *  giving up — tighter than the website's 5s loop since polling here is cheap (no UI list to
- *  re-render at that cadence on a slower connection) and a quicker cadence is what makes the
- *  update feel immediate instead of laggy. */
+/** Fallback cadence/timeout used only when the SSE status stream (see batchEvents.ts) is
+ *  unavailable — a proxy/firewall that buffers text/event-stream, or the connection dropping
+ *  mid-batch. The normal path doesn't poll at all: the backend pushes a status event the instant
+ *  it changes. */
 const POLL_INTERVAL_MS = 1500;
 const POLL_TIMEOUT_MS = 600000;
 
@@ -18,13 +19,16 @@ export function useFileUpload() {
   const setUploadingBatch = useAssetStore((s) => s.setUploadingBatch);
 
   /** Batch uploads finish processing (thumbnails, AI tagging) on a background thread — the
-   *  upload request resolving only means it was accepted, not that the rows/previews exist
-   *  yet. Poll the batch's status and refresh the currently-displayed list on every tick, so
-   *  assets appear as they finish instead of relying on a single fixed guess-delay. Also clears
-   *  the "Processing…" indicator (see setUploadingBatch) once done, however it ends. */
+   *  upload request resolving only means it was accepted, not that the rows/previews exist yet.
+   *  Subscribes to the batch's SSE status stream and refreshes the currently-displayed list the
+   *  instant a status change arrives, so assets appear as they finish instead of on a delay.
+   *  Falls back to the old fixed-interval poll only if push turns out to be unavailable (see
+   *  batchEvents.ts) — e.g. a network that buffers/blocks text/event-stream. Also clears the
+   *  "Processing…" indicator (see setUploadingBatch) once done, however it ends. */
   async function pollBatchUntilComplete(batchId: string) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
-    try {
+
+    async function pollFallback() {
       while (Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
         let status: string | null;
@@ -38,7 +42,34 @@ export function useFileUpload() {
           refetchProjectTree();
           return;
         }
+        if (status === "FAILED") return;
       }
+    }
+
+    try {
+      await new Promise<void>((resolve) => {
+        const unsubscribe = subscribeToBatchStatus(
+          batchId,
+          (status) => {
+            refetchAssets();
+            if (status === "COMPLETED") {
+              refetchProjectTree();
+              resolve();
+            } else if (status === "FAILED") {
+              resolve();
+            }
+          },
+          () => {
+            pollFallback().finally(resolve);
+          }
+        );
+        // Belt-and-suspenders: if neither the stream nor the fallback poll ever resolves
+        // (batch stuck, server issue), stop showing "Processing…" once the deadline passes.
+        setTimeout(() => {
+          unsubscribe();
+          resolve();
+        }, Math.max(deadline - Date.now(), 0));
+      });
     } finally {
       setUploadingBatch(batchId, null);
     }

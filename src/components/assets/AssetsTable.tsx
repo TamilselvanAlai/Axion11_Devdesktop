@@ -14,7 +14,7 @@ import { FileTypeBadge } from "@/components/assets/FileTypeBadge";
 import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
-import { AssetUploadingTableRow } from "@/components/assets/AssetsSkeleton";
+import { AssetUploadingTableRow, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
@@ -62,7 +62,15 @@ function formatSize(mb: number) {
   return mb >= 1000 ? `${(mb / 1000).toFixed(1)} GB` : `${mb} MB`;
 }
 
-export function AssetsTable({ assets, uploadingFiles = [] }: { assets: Asset[]; uploadingFiles?: string[] }) {
+export function AssetsTable({
+  assets,
+  uploadingFiles = [],
+  uploadingPhase = "uploading",
+}: {
+  assets: Asset[];
+  uploadingFiles?: string[];
+  uploadingPhase?: AssetUploadPhase;
+}) {
   const {
     sortKey,
     sortAsc,
@@ -164,13 +172,16 @@ export function AssetsTable({ assets, uploadingFiles = [] }: { assets: Asset[]; 
       </TableHeader>
       <TableBody>
         {uploadingFiles.map((name, i) => (
-          <AssetUploadingTableRow key={`uploading-${i}-${name}`} name={name} />
+          <AssetUploadingTableRow key={`uploading-${i}-${name}`} name={name} phase={uploadingPhase} />
         ))}
         {rows.map((asset, index) => (
           <TableRow
             key={asset.id}
             data-asset-row={asset.id}
-            className={cn("group cursor-pointer", (selectedAssetId === asset.id || multiSelectedIds.has(asset.id)) && "bg-muted")}
+            className={cn(
+              "group cursor-pointer animate-in fade-in duration-300",
+              (selectedAssetId === asset.id || multiSelectedIds.has(asset.id)) && "bg-muted"
+            )}
             onClick={() => selectAssetAndReveal(asset)}
           >
             <TableCell onClick={(e) => handleCheckboxClick(e, index, asset.id)}>

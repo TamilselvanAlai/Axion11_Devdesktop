@@ -68,6 +68,20 @@ export const localSyncService = {
     });
   },
 
+  /** Checks a folder's worth of assets against this device's real disk in one call, adopting any
+   *  that genuinely exist into this device's synced-assets manifest — for files that ended up in
+   *  the mount folder some other way (copied in manually, downloaded before this device started
+   *  tracking its own syncs) rather than through this app's own download flow. Returns how many
+   *  were newly adopted, so the caller can skip refreshing icons when nothing changed. */
+  async reconcileLocalAssets(params: { relativePaths: string[]; mountRoot?: string | null }): Promise<number> {
+    if (!isTauri() || params.relativePaths.length === 0) return 0;
+    const { invoke } = await import("@tauri-apps/api/core");
+    return invoke<number>("reconcile_local_assets", {
+      relativePaths: params.relativePaths,
+      mountRoot: params.mountRoot ?? null,
+    });
+  },
+
   /** Confirms a drive/folder is actually writable before Mount Settings persists it. */
   async verifyMountRoot(root: string): Promise<void> {
     if (!isTauri()) {

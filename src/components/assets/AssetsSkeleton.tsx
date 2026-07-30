@@ -1,6 +1,7 @@
 import { Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TableRow, TableCell } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import type { AssetViewMode } from "@/types";
 
 export function AssetsGridSkeleton() {
@@ -40,34 +41,50 @@ export function AssetsSkeleton({ viewMode }: { viewMode: AssetViewMode }) {
   return viewMode === "grid" ? <AssetsGridSkeleton /> : <AssetsTableSkeleton />;
 }
 
-/** Per-file placeholder shown the instant a file starts uploading (in-flight request, before
- *  any server-side row exists) — so the grid reflects the upload immediately instead of looking
- *  unchanged until the batch is accepted and a later poll happens to land. See useFileUpload /
- *  ProjectDetailView. */
-export function AssetUploadingGridTile({ name }: { name: string }) {
+export type AssetUploadPhase = "uploading" | "processing";
+
+const PHASE_LABEL: Record<AssetUploadPhase, string> = {
+  uploading: "Uploading…",
+  processing: "Processing…",
+};
+
+/** Per-file placeholder shown from the instant a file starts uploading through server-side
+ *  processing (AI tagging/preview generation) — same card shape as the real asset Card the
+ *  moment it's replaced, so the grid never looks "empty" in between. See useFileUpload /
+ *  ProjectDetailView, which clears these (and refreshes the real list) once the batch completes. */
+export function AssetUploadingGridTile({ name, phase }: { name: string; phase: AssetUploadPhase }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-primary/30 bg-primary/5">
+    <div
+      className={cn(
+        "overflow-hidden rounded-xl border bg-primary/5",
+        phase === "uploading" ? "border-primary/30" : "border-violet-500/30"
+      )}
+    >
       <div className="relative flex h-40 w-full items-center justify-center overflow-hidden bg-muted/40">
         <Skeleton className="absolute inset-0 rounded-none" />
-        <Loader2 className="relative z-10 size-5 animate-spin text-primary" />
+        <Loader2 className={cn("relative z-10 size-5 animate-spin", phase === "uploading" ? "text-primary" : "text-violet-400")} />
       </div>
       <div className="flex flex-col gap-1 p-3">
         <p className="truncate text-sm font-medium">{name}</p>
-        <p className="text-xs font-medium text-primary">Uploading…</p>
+        <p className={cn("text-xs font-medium", phase === "uploading" ? "text-primary" : "text-violet-400")}>
+          {PHASE_LABEL[phase]}
+        </p>
       </div>
     </div>
   );
 }
 
-export function AssetUploadingTableRow({ name }: { name: string }) {
+export function AssetUploadingTableRow({ name, phase }: { name: string; phase: AssetUploadPhase }) {
   return (
-    <TableRow className="bg-primary/5 hover:bg-primary/5">
+    <TableRow className={cn(phase === "uploading" ? "bg-primary/5 hover:bg-primary/5" : "bg-violet-500/5 hover:bg-violet-500/5")}>
       <TableCell />
       <TableCell colSpan={7}>
         <div className="flex min-w-0 items-center gap-2">
-          <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
+          <Loader2 className={cn("size-3.5 shrink-0 animate-spin", phase === "uploading" ? "text-primary" : "text-violet-400")} />
           <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
-          <span className="shrink-0 text-xs font-medium text-primary">Uploading…</span>
+          <span className={cn("shrink-0 text-xs font-medium", phase === "uploading" ? "text-primary" : "text-violet-400")}>
+            {PHASE_LABEL[phase]}
+          </span>
         </div>
       </TableCell>
     </TableRow>

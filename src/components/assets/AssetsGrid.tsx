@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { StatusBadge } from "@/components/assets/StatusBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
-import { AssetUploadingGridTile } from "@/components/assets/AssetsSkeleton";
+import { AssetUploadingGridTile, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,15 @@ function formatSize(sizeMb: number) {
   return sizeMb >= 1000 ? `${(sizeMb / 1000).toFixed(1)} GB` : `${Math.round(sizeMb)} MB`;
 }
 
-export function AssetsGrid({ assets, uploadingFiles = [] }: { assets: Asset[]; uploadingFiles?: string[] }) {
+export function AssetsGrid({
+  assets,
+  uploadingFiles = [],
+  uploadingPhase = "uploading",
+}: {
+  assets: Asset[];
+  uploadingFiles?: string[];
+  uploadingPhase?: AssetUploadPhase;
+}) {
   const { selectedAssetId, selectAssetAndReveal, sortKey, sortAsc, filters, multiSelectedIds, toggleMultiSelect, selectRange } =
     useAssetStore();
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
@@ -65,7 +73,7 @@ export function AssetsGrid({ assets, uploadingFiles = [] }: { assets: Asset[]; u
   return (
     <div className="grid grid-cols-2 gap-4 @min-[560px]:grid-cols-3 @min-[820px]:grid-cols-4 @min-[1080px]:grid-cols-5">
       {uploadingFiles.map((name, i) => (
-        <AssetUploadingGridTile key={`uploading-${i}-${name}`} name={name} />
+        <AssetUploadingGridTile key={`uploading-${i}-${name}`} name={name} phase={uploadingPhase} />
       ))}
       {rows.map((asset, index) => {
         const checked = multiSelectedIds.has(asset.id);
@@ -75,6 +83,7 @@ export function AssetsGrid({ assets, uploadingFiles = [] }: { assets: Asset[]; u
           data-asset-row={asset.id}
           className={cn(
             "group cursor-pointer gap-0 overflow-hidden p-0 ring-1 ring-foreground/10 transition-colors",
+            "animate-in fade-in zoom-in-95 duration-300",
             (selectedAssetId === asset.id || checked) && "ring-2 ring-primary"
           )}
           onClick={() => selectAssetAndReveal(asset)}

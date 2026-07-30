@@ -4,12 +4,95 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// Paths currently being watched, so re-opening the same asset doesn't spawn duplicate watchers.
 fn watched_paths() -> &'static Mutex<HashSet<PathBuf>> {
     static WATCHED: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
     WATCHED.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+// ── Device-scoped "actually synced here" manifest ───────────────────────────────────────────
+//
+// `resolve_local_path` can land on a mounted drive the user picked in Mount Settings — which may
+// be a mapped network share or a cloud-sync (OneDrive/Google Drive) folder rather than a disk
+// that's truly private to this machine. In that case a bare `path.exists()` check answers "is
+// this file reachable from here" (true on every machine that mounts the same share/sync folder,
+// or that sees a cloud-sync placeholder before its content is hydrated) rather than "did *this
+// device* actually download it" — which is what the sync icon is supposed to mean. This manifest
+// records, per relative asset path, that a real download/open happened via *this* running app
+// instance. It's written to Tauri's app-local-data dir specifically — never inside the
+// user-selectable mount root — so it can't itself end up on shared/synced storage.
+fn manifest_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|e| format!("Failed to resolve app data directory: {e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create app data directory: {e}"))?;
+    Ok(dir.join("synced-assets.json"))
+}
+
+fn load_manifest_from_disk(app: &AppHandle) -> HashSet<String> {
+    let Ok(path) = manifest_path(app) else { return HashSet::new() };
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|contents| serde_json::from_str::<Vec<String>>(&contents).ok())
+        .map(|entries| entries.into_iter().collect())
+        .unwrap_or_default()
+}
+
+/// In-memory cache of the manifest, lazily loaded from disk on first use in this process.
+/// Guarded by the same mutex used to persist changes, so read-modify-write stays atomic.
+fn synced_manifest(app: &AppHandle) -> &'static Mutex<HashSet<String>> {
+    static MANIFEST: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    MANIFEST.get_or_init(|| Mutex::new(load_manifest_from_disk(app)))
+}
+
+fn persist_manifest(app: &AppHandle, entries: &HashSet<String>) {
+    let Ok(path) = manifest_path(app) else { return };
+    if let Ok(json) = serde_json::to_string(&entries.iter().collect::<Vec<_>>()) {
+        let _ = std::fs::write(&path, json);
+    }
+}
+
+/// Marks `relative_path` as genuinely downloaded/opened by this device — call only after this
+/// process has itself confirmed the local file is present (a fresh download, or reopening one
+/// this device already fetched before), never from a bare existence check alone.
+fn record_synced(app: &AppHandle, relative_path: &str) {
+    let manifest = synced_manifest(app);
+    let mut entries = manifest.lock().unwrap();
+    if entries.insert(relative_path.to_string()) {
+        persist_manifest(app, &entries);
+    }
+}
+
+fn is_synced(app: &AppHandle, relative_path: &str) -> bool {
+    synced_manifest(app).lock().unwrap().contains(relative_path)
+}
+
+/// Batch-checks a folder's worth of assets against this device's real disk, adopting any that
+/// genuinely exist into the synced-assets manifest — covers files that ended up in the mount
+/// folder some other way (copied in manually, downloaded before this manifest existed) rather
+/// than through this app's own download flow. Called once per folder view rather than per-icon,
+/// but the underlying check is the same as a single asset's `is_synced`/`exists()` pair: if the
+/// mount root is a shared/network drive, this adopts whatever's reachable there too —
+/// reconciliation trusts the disk by design, since it only runs when a folder is actually opened
+/// on this device, not silently in the background.
+/// Returns how many were newly adopted, so the caller can skip refreshing icons when nothing changed.
+#[tauri::command]
+pub fn reconcile_local_assets(app: AppHandle, relative_paths: Vec<String>, mount_root: Option<String>) -> usize {
+    let mut adopted = 0;
+    for relative_path in relative_paths {
+        if is_synced(&app, &relative_path) {
+            continue;
+        }
+        let local_path = resolve_local_path(&relative_path, mount_root.as_deref());
+        if local_path.exists() {
+            record_synced(&app, &relative_path);
+            adopted += 1;
+        }
+    }
+    adopted
 }
 
 #[derive(Serialize, Clone)]
@@ -59,6 +142,10 @@ pub async fn open_and_sync_asset(
     mount_root: Option<String>,
 ) -> Result<OpenAssetResult, String> {
     let local_path = download_asset(&app, &download_url, &relative_path, mount_root.as_deref()).await?;
+    // This process just confirmed (by downloading it, or finding it already there) that a real
+    // copy lives on this device's own disk — record that against this device's manifest, not
+    // just the fact that `local_path` currently exists (see `get_local_asset_info`).
+    record_synced(&app, &relative_path);
     let opened_at = get_or_record_opened_at(&local_path)?;
 
     tauri_plugin_opener::open_path(local_path.to_string_lossy().to_string(), None::<&str>)
@@ -72,8 +159,18 @@ pub async fn open_and_sync_asset(
 /// Looks up an already-downloaded asset without downloading or opening it — lets the UI show
 /// "time spent" (based on the first-opened marker) even when the panel wasn't the thing that
 /// triggered the download. Returns `None` if no local copy exists yet.
+///
+/// Requires both a real file on disk *and* an entry in this device's own synced-assets manifest
+/// (see `is_synced`) — file existence alone isn't reliable when the mount root is a mapped
+/// network drive or a cloud-sync folder shared across machines/sessions: every one of them would
+/// see the file (or an unhydrated placeholder for it) as "existing" even though only one of them
+/// actually pulled it down. The manifest check ensures the icon reflects *this* device's own
+/// download history rather than mere reachability of the bytes.
 #[tauri::command]
-pub fn get_local_asset_info(relative_path: String, mount_root: Option<String>) -> Option<OpenAssetResult> {
+pub fn get_local_asset_info(app: AppHandle, relative_path: String, mount_root: Option<String>) -> Option<OpenAssetResult> {
+    if !is_synced(&app, &relative_path) {
+        return None;
+    }
     let local_path = resolve_local_path(&relative_path, mount_root.as_deref());
     if !local_path.exists() {
         return None;

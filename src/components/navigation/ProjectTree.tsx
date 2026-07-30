@@ -1,4 +1,4 @@
-import { ChevronRight, Folder } from "lucide-react";
+import { ChevronRight, Folder, Loader2 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
@@ -11,6 +11,7 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
   const navigate = useNavigate();
   const { projectId: activeId } = useParams();
   const { expandedIds, toggleExpanded, selectedAssetBatchId } = useAssetStore();
+  const uploading = useAssetStore((state) => state.uploadingBatches[node.id]);
   const hasChildren = Boolean(node.children?.length);
   const isExpanded = expandedIds.has(node.id);
   const isActive = activeId === node.id || selectedAssetBatchId === node.id;
@@ -51,6 +52,11 @@ function TreeNode({ node, depth }: { node: ProjectNode; depth: number }) {
         )}
         <Folder className={cn("size-3.5 shrink-0", isActive ? "text-primary" : "text-info")} />
         <span className="whitespace-nowrap">{node.name}</span>
+        {uploading && (
+          <Loader2
+            className={cn("size-3 shrink-0 animate-spin", uploading.phase === "uploading" ? "text-primary" : "text-violet-400")}
+          />
+        )}
       </div>
 
       {hasChildren && (

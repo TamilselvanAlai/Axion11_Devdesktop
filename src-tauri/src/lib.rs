@@ -41,6 +41,7 @@ pub fn run() {
             system_info::list_local_drives,
             local_sync::open_and_sync_asset,
             local_sync::get_local_asset_info,
+            local_sync::reconcile_local_assets,
             local_sync::verify_mount_root,
         ])
         .setup(|app| {

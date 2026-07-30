@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Loader2, UploadCloud } from "lucide-react";
 import { AssetsToolbar } from "@/components/assets/AssetsToolbar";
 import { AssetsTable } from "@/components/assets/AssetsTable";
@@ -9,8 +10,9 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectView } from "@/hooks/useProjectView";
 import { useFolderDropTarget } from "@/hooks/useFolderDropTarget";
-import { useAssetStore } from "@/store";
-import { findAncestorPath } from "@/utils/assetPath";
+import { localSyncService } from "@/services/localSync.service";
+import { useAssetStore, useMountSettingsStore } from "@/store";
+import { buildAssetRelativePath, findAncestorPath } from "@/utils/assetPath";
 import { toUploadTarget } from "@/utils/dragDropFiles";
 
 function FolderTableSkeleton() {
@@ -28,11 +30,37 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
   const viewMode = useAssetStore((state) => state.viewMode);
   const projectTree = useAssetStore((state) => state.projectTree);
   const uploading = useAssetStore((state) => (node ? state.uploadingBatches[node.id] : undefined));
-  // Only while the request is actually in flight — once we're "processing", the batch has
-  // been accepted server-side and real rows will start replacing these via the next poll, so
-  // placeholders and real rows would otherwise both show for the same files.
-  const uploadingFileNames = uploading?.phase === "uploading" ? uploading.fileNames : [];
+  // Shown through both the "uploading" and "processing" phases — the batch only clears from
+  // uploadingBatches once its status stream reports COMPLETED/FAILED (see useFileUpload), at
+  // which point the real rows have just been (re)fetched, so placeholder and real card never
+  // need to coexist for the same file. The name filter below is a safety net for the rare case
+  // where a real row for one of these names already landed from an unrelated refresh.
+  const uploadingFileNames = uploading
+    ? uploading.fileNames.filter((name) => !assets.some((a) => a.name === name))
+    : [];
   const { isDragOver, dropHandlers } = useFolderDropTarget(node ? toUploadTarget(node) : null);
+  const mountPoint = useMountSettingsStore((state) => state.mountPoint);
+  const bumpLocalSyncTick = useAssetStore((state) => state.bumpLocalSyncTick);
+
+  // Picks up files that are already sitting in the mount folder but weren't put there through
+  // this app's own download flow (copied in manually, or downloaded before this device started
+  // tracking its own syncs) — without this, the sync icon would only ever recognize a file after
+  // the app itself re-downloads/reopens it. Runs once whenever this folder's asset list loads;
+  // reconcileLocalAssets is a no-op for assets already known, so re-running on a refetch is cheap.
+  useEffect(() => {
+    if (isFolder || !node || assets.length === 0 || !localSyncService.isTauri()) return;
+    let cancelled = false;
+    const relativePaths = assets
+      .filter((a) => a.batchId)
+      .map((a) => buildAssetRelativePath(projectTree, a.batchId!, a.name, a.id));
+    localSyncService.reconcileLocalAssets({ relativePaths, mountRoot: mountPoint }).then((adopted) => {
+      if (!cancelled && adopted > 0) bumpLocalSyncTick();
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFolder, node?.id, assets, projectTree, mountPoint]);
 
   if (!node) {
     // The tree can briefly lag behind reality (e.g. right after this batch was just created) —
@@ -84,9 +112,9 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
           {status === "loading" && assets.length === 0 ? (
             <AssetsSkeleton viewMode={viewMode} />
           ) : viewMode === "grid" ? (
-            <AssetsGrid assets={assets} uploadingFiles={uploadingFileNames} />
+            <AssetsGrid assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
           ) : (
-            <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} />
+            <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
           )}
           <BulkActionBar />
         </>
