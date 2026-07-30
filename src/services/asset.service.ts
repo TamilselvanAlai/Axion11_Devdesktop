@@ -172,14 +172,21 @@ async function uploadOneFile(file: File, target: { batchId?: string; projectId?:
       if (!putResponse.ok) {
         throw new Error(`Upload to storage failed with status ${putResponse.status}`);
       }
-      await apiClient.post("/uploads/confirm", {
-        gcsFileName: signed.gcsFileName,
-        originalFileName: file.name,
-        contentType,
-        fileSize: file.size,
-        projectId: target.projectId ? Number(target.projectId) : undefined,
-        batchId: target.batchId ? Number(target.batchId) : undefined,
-      });
+      // The confirm call itself is small JSON, but the backend row-creation it waits on can
+      // occasionally take a little longer than the default timeout under load — give it the
+      // same kind of headroom as the multipart fallback calls below rather than the 10s default.
+      await apiClient.post(
+        "/uploads/confirm",
+        {
+          gcsFileName: signed.gcsFileName,
+          originalFileName: file.name,
+          contentType,
+          fileSize: file.size,
+          projectId: target.projectId ? Number(target.projectId) : undefined,
+          batchId: target.batchId ? Number(target.batchId) : undefined,
+        },
+        { timeout: 60000 }
+      );
       return;
     }
   } catch (err) {
