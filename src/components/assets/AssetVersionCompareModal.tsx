@@ -6,7 +6,6 @@ import {
   ImageOff,
   Check,
   Loader2,
-  Rocket,
   PenTool,
   CircleDot,
   Image as ImageIcon,
@@ -16,6 +15,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { AssetCommentsPanel } from "@/components/assets/AssetCommentsPanel";
+import { AssetDownloadDialog } from "@/components/assets/AssetDownloadDialog";
 import { AnnotationCanvas, type AnnotationCanvasHandle } from "@/components/assets/AnnotationCanvas";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { getStatusMeta } from "@/utils/assetStatus";
@@ -32,8 +32,14 @@ interface AssetVersionCompareModalProps {
   /** Any version's id in the chain — the full chain is resolved from this. */
   assetId: string;
   onClose: () => void;
-  /** Called after approve/reject/publish so the caller can refresh whatever list it owns. */
+  /** Called after approve/reject so the caller can refresh whatever list it owns. */
   onStatusChange?: () => void;
+  /** Layout to open in — defaults to "side-by-side". */
+  initialLayout?: CompareLayout;
+  onPrev?: () => void;
+  onNext?: () => void;
+  hasPrev?: boolean;
+  hasNext?: boolean;
 }
 
 const WIDTH_PRESETS = [2, 4, 8, 12, 16];
@@ -123,17 +129,31 @@ function VersionSelect({
   );
 }
 
-export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: AssetVersionCompareModalProps) {
+export function AssetVersionCompareModal({
+  assetId,
+  onClose,
+  onStatusChange,
+  initialLayout,
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false,
+}: AssetVersionCompareModalProps) {
   const [versions, setVersions] = useState<Asset[] | null>(null);
   const [leftId, setLeftId] = useState<string>(assetId);
   const [rightId, setRightId] = useState<string>(assetId);
-  const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
   const [drawingActive, setDrawingActive] = useState(false);
   const [drawingWidth, setDrawingWidth] = useState(4);
-  const [compareLayout, setCompareLayout] = useState<CompareLayout>("side-by-side");
+  const [compareLayout, setCompareLayout] = useState<CompareLayout>(initialLayout ?? "side-by-side");
   const [sliderPosition, setSliderPosition] = useState(50);
+  // Shared across both panes in side-by-side mode (same state passed to both AnnotationCanvas
+  // instances) so scrolling to zoom into a region on one image zooms the same region on the other.
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [activeAnnotationUrl, setActiveAnnotationUrl] = useState<string | null>(null);
   const [sliderImgBox, setSliderImgBox] = useState({ left: 0, top: 0, width: 0, height: 0 });
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const rightCanvasRef = useRef<AnnotationCanvasHandle>(null);
   const sliderContainerRef = useRef<HTMLDivElement>(null);
   const sliderImgRef = useRef<HTMLImageElement>(null);
@@ -144,6 +164,13 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
   // image, so there's no per-image canvas to draw on there.
   useEffect(() => {
     if (compareLayout === "slider") setDrawingActive(false);
+  }, [compareLayout]);
+
+  // Zoom/pan is meaningless once the visual model changes (e.g. slider mode has no
+  // AnnotationCanvas at all) — reset rather than carry a stale offset into the next layout.
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
   }, [compareLayout]);
 
   // A markup overlay is tied to whichever version it was drawn on — don't leave it showing
@@ -227,24 +254,24 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      if (compareLayout !== "individual") return;
+      if (e.key === "ArrowLeft" && hasPrev) onPrev?.();
+      if (e.key === "ArrowRight" && hasNext) onNext?.();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  }, [onClose, onPrev, onNext, hasPrev, hasNext, compareLayout]);
 
   const left = versions?.find((v) => v.id === leftId);
   const right = versions?.find((v) => v.id === rightId);
 
-  async function handleDecision(decision: "approve" | "reject" | "publish") {
+  async function handleDecision(decision: "approve" | "reject") {
     if (!right) return;
     setDeciding(decision);
     try {
       if (decision === "approve") await assetService.approveAsset(right.id);
-      else if (decision === "reject") await assetService.rejectAsset(right.id);
-      else await assetService.publishAsset(right.id);
-      toast.success(
-        decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Asset published live."
-      );
+      else await assetService.rejectAsset(right.id);
+      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
       const refreshed = await assetService.getVersions(assetId);
       setVersions(refreshed);
       onStatusChange?.();
@@ -256,11 +283,11 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
   }
 
   function handleDownload() {
-    if (!right || !isUrl(right.thumbnailColor)) {
+    if (!versions || versions.length === 0) {
       toast.error("No file available to download.");
       return;
     }
-    window.open(right.thumbnailColor, "_blank");
+    setDownloadDialogOpen(true);
   }
 
   const rightStatus = right ? getStatusMeta(right.status, right.established) : null;
@@ -324,14 +351,41 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
             </div>
           )}
           {compareLayout === "individual" ? (
-            <AnnotationCanvas
-              ref={rightCanvasRef}
-              imageUrl={right && isUrl(right.thumbnailColor) ? right.thumbnailColor : null}
-              alt={right?.name ?? ""}
-              active={drawingActive}
-              lineWidth={drawingWidth}
-              overlayImageUrl={activeAnnotationUrl}
-            />
+            <div className="relative flex min-h-0 flex-1">
+              <AnnotationCanvas
+                ref={rightCanvasRef}
+                imageUrl={right && isUrl(right.thumbnailColor) ? right.thumbnailColor : null}
+                alt={right?.name ?? ""}
+                active={drawingActive}
+                lineWidth={drawingWidth}
+                overlayImageUrl={activeAnnotationUrl}
+                zoom={zoom}
+                pan={pan}
+                onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
+              />
+              {(onPrev || onNext) && (
+                <>
+                  <button
+                    type="button"
+                    onClick={onPrev}
+                    disabled={!hasPrev}
+                    aria-label="Previous asset"
+                    className="absolute left-3 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ChevronLeft className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onNext}
+                    disabled={!hasNext}
+                    aria-label="Next asset"
+                    className="absolute right-3 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    <ChevronRight className="size-4" />
+                  </button>
+                </>
+              )}
+            </div>
           ) : compareLayout === "side-by-side" ? (
             <div className="flex min-h-0 flex-1">
               <AnnotationCanvas
@@ -339,6 +393,9 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
                 alt={left?.name ?? ""}
                 active={drawingActive}
                 lineWidth={drawingWidth}
+                zoom={zoom}
+                pan={pan}
+                onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
               />
               <div className="w-px shrink-0 bg-white/10" />
               <AnnotationCanvas
@@ -348,6 +405,9 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
                 active={drawingActive}
                 lineWidth={drawingWidth}
                 overlayImageUrl={activeAnnotationUrl}
+                zoom={zoom}
+                pan={pan}
+                onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
               />
             </div>
           ) : (
@@ -524,17 +584,6 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
                   Reject
                 </button>
               </div>
-              {right.status === "approved" && (
-                <button
-                  type="button"
-                  onClick={() => handleDecision("publish")}
-                  disabled={deciding !== null}
-                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-info px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deciding === "publish" ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}
-                  Publish to Live
-                </button>
-              )}
               {rightStatus && (
                 <p className={`mt-2 text-center text-[10px] ${rightStatus.textClass}`}>
                   Currently viewing: {rightStatus.label} — actions apply to {right.version}, not the latest version.
@@ -544,6 +593,12 @@ export function AssetVersionCompareModal({ assetId, onClose, onStatusChange }: A
           )}
         </div>
       </div>
+      <AssetDownloadDialog
+        open={downloadDialogOpen}
+        onOpenChange={setDownloadDialogOpen}
+        versions={versions ?? []}
+        defaultSelectedId={right?.id}
+      />
     </div>
   );
 }

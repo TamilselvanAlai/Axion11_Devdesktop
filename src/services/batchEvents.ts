@@ -27,7 +27,11 @@ export function subscribeToBatchStatus(
     return () => {};
   }
 
-  const url = `${env.apiBaseUrl}/batches/${encodeURIComponent(batchId)}/stream?token=${encodeURIComponent(token)}`;
+  // Tree-node ids carry a "b-" prefix (see toUploadTarget) — strip it like every other
+  // batch-id-consuming call does (e.g. asset.service.ts#getBatchUploadStatus), since the
+  // backend's /batches/{id} routes expect a plain numeric id.
+  const numericId = batchId.startsWith("b-") ? batchId.slice(2) : batchId;
+  const url = `${env.apiBaseUrl}/batches/${encodeURIComponent(numericId)}/stream?token=${encodeURIComponent(token)}`;
   const source = new EventSource(url);
   let resolved = false; // a terminal status (COMPLETED/FAILED) has been delivered
   let fellBack = false; // onUnavailable already fired — never fire it twice

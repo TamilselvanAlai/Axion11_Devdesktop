@@ -95,7 +95,7 @@ function MountServiceCard({ service, driveOptions }: { service: BackgroundServic
         setMountPoint(drive.id);
         saveCacheLimitGb(cacheLimitGb);
         setFlipped(false);
-        toast.success(`Local sync path updated — new files now save under ${drive.label}\\AxionDam.`);
+        toast.success(`Local sync path updated — new files now save under ${drive.label}\\AxionDam\\assets.`);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Couldn't use that drive. Pick another one.");
       } finally {

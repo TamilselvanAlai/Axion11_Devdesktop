@@ -27,8 +27,37 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+/** Opens a URL in the system's default browser. A plain `window.open()` inside the desktop
+ *  app's Tauri WebView2 window doesn't reliably hand off to the OS browser — it can silently
+ *  no-op — so this uses the opener plugin there, falling back to `window.open` on the web build. */
+async function openExternalUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+    return;
+  }
+  window.open(url, "_blank");
+}
+
+/** Saves a file straight to the OS Downloads folder — the actual "save this file" action, as
+ *  opposed to openExternalUrl, which just hands the URL to the OS/browser to do whatever it
+ *  wants with (unreliable for formats like TIFF that have no good default handler, and even when
+ *  "it works" the browser controls where the bytes land, not the app). Falls back to
+ *  openExternalUrl on the web build, where there's no direct filesystem access to write to.
+ *  Returns the saved path (Tauri) or "" (web, since the browser owns that decision there). */
+async function downloadToDownloads(url: string, fileName: string): Promise<string> {
+  if (!isTauri()) {
+    await openExternalUrl(url);
+    return "";
+  }
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<string>("download_asset_to_downloads", { url, fileName });
+}
+
 export const localSyncService = {
   isTauri,
+  openExternalUrl,
+  downloadToDownloads,
 
   /** Downloads the asset locally (mirroring the project tree), opens it, and watches it —
    *  any save is automatically re-uploaded as a new version of the same asset.

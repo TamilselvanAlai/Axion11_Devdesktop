@@ -20,6 +20,9 @@ export interface Asset {
   assignee: AssetAssignee;
   updatedAt: string;
   thumbnailColor: string;
+  /** Full-resolution original file — distinct from thumbnailColor, which prefers the small
+   *  generated preview for display. Use this one for actual downloads. */
+  downloadUrl: string | null;
   /** True for the one version in this asset's chain that's the current "VE" (established) —
    *  the latest version an editor actually edited and saved, i.e. the original-format
    *  (TIFF/PSD, layered) source to rework from. Independent of approval status. */
@@ -50,8 +53,6 @@ export interface AssetDetail extends Asset {
   modifiedAt: string;
   checksumOk: boolean;
   locked: boolean;
-  /** Full-resolution original file, for opening/editing — distinct from the small preview used elsewhere. */
-  downloadUrl: string | null;
 }
 
 export interface AssetComment {

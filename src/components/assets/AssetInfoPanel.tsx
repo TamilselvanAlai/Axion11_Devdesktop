@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Unlock, Eye, Loader2, RefreshCw, Check, X, Rocket, Pencil, Layers } from "lucide-react";
+import { CheckCircle, Lock, Unlock, Eye, Loader2, RefreshCw, Check, X, Pencil, Layers } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
@@ -36,7 +36,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [deciding, setDeciding] = useState<"approve" | "reject" | "publish" | null>(null);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
   const [localInfo, setLocalInfo] = useState<OpenAssetResult | null>(null);
   const [versions, setVersions] = useState<Asset[] | null>(null);
   const [productionSeconds, setProductionSeconds] = useState<number | null>(null);
@@ -143,15 +143,12 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     setPreviewOpen(true);
   }
 
-  async function handleDecision(decision: "approve" | "reject" | "publish") {
+  async function handleDecision(decision: "approve" | "reject") {
     setDeciding(decision);
     try {
       if (decision === "approve") await assetService.approveAsset(detail.id);
-      else if (decision === "reject") await assetService.rejectAsset(detail.id);
-      else await assetService.publishAsset(detail.id);
-      toast.success(
-        decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Asset published live."
-      );
+      else await assetService.rejectAsset(detail.id);
+      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
       assetService.getVersions(detail.id).then(setVersions);
       onStatusChange?.();
     } catch {
@@ -296,16 +293,6 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
               Reject
             </button>
           </div>
-          {detail.status === "approved" && (
-            <button
-              onClick={() => handleDecision("publish")}
-              disabled={deciding !== null}
-              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg bg-info px-3 py-2 text-xs font-medium text-white shadow-md shadow-info/20 transition-colors hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deciding === "publish" ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}
-              Publish to Live
-            </button>
-          )}
         </div>
       )}
 

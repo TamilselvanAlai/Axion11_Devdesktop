@@ -15,14 +15,12 @@ import { AssigneeBadge } from "@/components/assets/AssigneeBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetUploadingTableRow, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
-import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
-import { isUrl } from "@/utils/helpers";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetSortKey } from "@/types";
 
@@ -86,8 +84,7 @@ export function AssetsTable({
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const [compareAssetId, setCompareAssetId] = useState<string | null>(null);
+  const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<AssetSortKey, number>>(DEFAULT_COLUMN_WIDTHS);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
@@ -192,7 +189,7 @@ export function AssetsTable({
                 className="flex min-w-0 items-center gap-3"
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  setPreviewIndex(index);
+                  setCompareIndex(index);
                 }}
               >
                 <AssetThumbnail color={asset.thumbnailColor} />
@@ -222,23 +219,15 @@ export function AssetsTable({
       </TableBody>
     </Table>
 
-    {previewIndex !== null && rows[previewIndex] && !compareAssetId && (
-      <AssetPreviewModal
-        imageUrl={isUrl(rows[previewIndex].thumbnailColor) ? rows[previewIndex].thumbnailColor : null}
-        filename={rows[previewIndex].name}
-        onClose={() => setPreviewIndex(null)}
-        onPrev={() => setPreviewIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
-        onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
-        hasPrev={previewIndex > 0}
-        hasNext={previewIndex < rows.length - 1}
-        onReview={() => setCompareAssetId(rows[previewIndex].id)}
-      />
-    )}
-
-    {compareAssetId && (
+    {compareIndex !== null && rows[compareIndex] && (
       <AssetVersionCompareModal
-        assetId={compareAssetId}
-        onClose={() => setCompareAssetId(null)}
+        assetId={rows[compareIndex].id}
+        initialLayout="individual"
+        onClose={() => setCompareIndex(null)}
+        onPrev={() => setCompareIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
+        onNext={() => setCompareIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
+        hasPrev={compareIndex > 0}
+        hasNext={compareIndex < rows.length - 1}
         onStatusChange={refetchAssets}
       />
     )}

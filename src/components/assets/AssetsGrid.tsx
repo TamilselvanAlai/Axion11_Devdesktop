@@ -6,12 +6,10 @@ import { StatusBadge } from "@/components/assets/StatusBadge";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetUploadingGridTile, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
-import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
-import { isUrl } from "@/utils/helpers";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
@@ -48,8 +46,7 @@ export function AssetsGrid({
   const rows = sortAssets(filterAssets(assets, filters), sortKey, sortAsc);
   useScrollToSelectedAsset(selectedAssetId, [rows.length]);
   const lastClickedIndex = useRef<number | null>(null);
-  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
-  const [compareAssetId, setCompareAssetId] = useState<string | null>(null);
+  const [compareIndex, setCompareIndex] = useState<number | null>(null);
 
   function handleCheckboxClick(e: React.MouseEvent, index: number, assetId: string) {
     e.stopPropagation();
@@ -89,7 +86,7 @@ export function AssetsGrid({
           )}
           onClick={() => selectAssetAndReveal(asset)}
         >
-          <div className="relative h-40 w-full shrink-0" onDoubleClick={(e) => { e.stopPropagation(); setPreviewIndex(index); }}>
+          <div className="relative h-40 w-full shrink-0" onDoubleClick={(e) => { e.stopPropagation(); setCompareIndex(index); }}>
             <AssetThumbnail color={asset.thumbnailColor} className="size-full" rounded={false} />
             <span
               onClick={(e) => handleCheckboxClick(e, index, asset.id)}
@@ -140,21 +137,16 @@ export function AssetsGrid({
         );
       })}
 
-      {previewIndex !== null && rows[previewIndex] && !compareAssetId && (
-        <AssetPreviewModal
-          imageUrl={isUrl(rows[previewIndex].thumbnailColor) ? rows[previewIndex].thumbnailColor : null}
-          filename={rows[previewIndex].name}
-          onClose={() => setPreviewIndex(null)}
-          onPrev={() => setPreviewIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
-          onNext={() => setPreviewIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
-          hasPrev={previewIndex > 0}
-          hasNext={previewIndex < rows.length - 1}
-          onReview={() => setCompareAssetId(rows[previewIndex].id)}
+      {compareIndex !== null && rows[compareIndex] && (
+        <AssetVersionCompareModal
+          assetId={rows[compareIndex].id}
+          initialLayout="individual"
+          onClose={() => setCompareIndex(null)}
+          onPrev={() => setCompareIndex((i) => (i !== null && i > 0 ? i - 1 : i))}
+          onNext={() => setCompareIndex((i) => (i !== null && i < rows.length - 1 ? i + 1 : i))}
+          hasPrev={compareIndex > 0}
+          hasNext={compareIndex < rows.length - 1}
         />
-      )}
-
-      {compareAssetId && (
-        <AssetVersionCompareModal assetId={compareAssetId} onClose={() => setCompareAssetId(null)} />
       )}
     </div>
   );

@@ -76,12 +76,12 @@ function toAsset(dto: ImageUploadApiDto): Asset {
   const sizeMb = dto.fileSize ? Math.round((dto.fileSize / (1024 * 1024)) * 10) / 10 : 0;
   const assigneeName = dto.assignedToName ?? dto.uploadedBy ?? "Unassigned";
   const status = toAssetStatus(dto.approvalStatus, dto.imageQualityQcCheck);
-  // The established (VE) version doesn't show its provisional version number until QC decides
-  // on it — it reads as "VE" while pending review, then the real v{n} once approved/rejected/
-  // live. The number is already stored underneath (see ImageUploadService#syncEditedVersion),
-  // this is purely a display choice so a not-yet-reviewed edit doesn't look like a done deal.
-  const isPendingReview = status !== "approved" && status !== "rejected" && status !== "live";
-  const version = dto.established && isPendingReview ? "VE" : `v${dto.versionNumber ?? 1}`;
+  // The established row is always the chain's current working copy — it reads as "VE" for as
+  // long as it's established, regardless of approval status (draft, approved, or rejected all
+  // still show "VE"; see ImageUpload#established on the backend). It only turns into its real
+  // v{n} once a same-name re-upload finalizes it (see ImageUploadService#findExistingSecondSlot),
+  // which is also what clears the established flag.
+  const version = dto.established ? "VE" : `v${dto.versionNumber ?? 1}`;
   return {
     id: String(dto.id),
     projectId: dto.projectId ? String(dto.projectId) : "",
@@ -96,6 +96,9 @@ function toAsset(dto: ImageUploadApiDto): Asset {
     // Prefer the generated preview (small, web-friendly JPEG) over the full-size original —
     // originals can be huge TIFF/PSD/RAW files that browsers can't even decode as <img>.
     thumbnailColor: dto.previewUrl || dto.publicUrl || THUMB_COLORS[dto.id % THUMB_COLORS.length],
+    // The other way around from thumbnailColor: an actual download should be the real file,
+    // only falling back to the preview if the original genuinely isn't available.
+    downloadUrl: dto.publicUrl || dto.previewUrl || null,
     established: dto.established,
   };
 }
@@ -110,7 +113,6 @@ function toAssetDetail(dto: ImageUploadApiDto): AssetDetail {
     modifiedAt: dto.createdAt ?? "—",
     checksumOk: dto.imageQualityQcCheck === "PASSED",
     locked: false,
-    downloadUrl: dto.publicUrl || dto.previewUrl || null,
   };
 }
 

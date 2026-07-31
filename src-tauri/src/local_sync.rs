@@ -156,6 +156,54 @@ pub async fn open_and_sync_asset(
     Ok(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
 }
 
+/// Downloads a version straight to the OS Downloads folder — a plain one-off copy for the
+/// "Download" action (compare view, etc.), distinct from `open_and_sync_asset`'s AxionDam
+/// mirror, which exists for the edit-and-resync workflow, not for handing someone a file. Opening
+/// the source URL directly (e.g. via the opener plugin) isn't a real substitute for this: it just
+/// launches whatever's associated with that URL/file type — for a TIFF that's often nothing
+/// usable, and even when it "works" the browser/OS controls where the bytes land, not the app.
+#[tauri::command]
+pub async fn download_asset_to_downloads(app: AppHandle, url: String, file_name: String) -> Result<String, String> {
+    let downloads_dir = app
+        .path()
+        .download_dir()
+        .map_err(|e| format!("Couldn't find the Downloads folder: {e}"))?;
+    std::fs::create_dir_all(&downloads_dir).map_err(|e| format!("Failed to create Downloads folder: {e}"))?;
+
+    let target_path = unique_path(&downloads_dir, &file_name);
+
+    let response = reqwest::get(&url).await.map_err(|e| format!("Download failed: {e}"))?;
+    if !response.status().is_success() {
+        return Err(format!("Download failed with status {}", response.status()));
+    }
+    let bytes = response.bytes().await.map_err(|e| format!("Failed to read downloaded file: {e}"))?;
+    std::fs::write(&target_path, &bytes).map_err(|e| format!("Failed to save file: {e}"))?;
+
+    Ok(target_path.to_string_lossy().to_string())
+}
+
+/// Appends " (1)", " (2)", ... before the extension when `desired` already exists in `dir` —
+/// matching how browsers/the OS avoid silently overwriting an existing download.
+fn unique_path(dir: &Path, desired: &str) -> PathBuf {
+    let candidate = dir.join(desired);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let stem = Path::new(desired).file_stem().and_then(|s| s.to_str()).unwrap_or(desired);
+    let ext = Path::new(desired).extension().and_then(|s| s.to_str());
+    for n in 1.. {
+        let name = match ext {
+            Some(ext) => format!("{stem} ({n}).{ext}"),
+            None => format!("{stem} ({n})"),
+        };
+        let next = dir.join(&name);
+        if !next.exists() {
+            return next;
+        }
+    }
+    unreachable!()
+}
+
 /// Looks up an already-downloaded asset without downloading or opening it — lets the UI show
 /// "time spent" (based on the first-opened marker) even when the panel wasn't the thing that
 /// triggered the download. Returns `None` if no local copy exists yet.
@@ -218,12 +266,18 @@ fn normalize_root(root: &str) -> String {
     }
 }
 
+/// Every asset lives under this folder within the mount root — kept as one constant so the
+/// write-test in `verify_mount_root` always checks the exact directory `resolve_local_path`
+/// actually uses, instead of the two drifting independently.
+const ASSETS_SUBDIR: [&str; 2] = ["AxionDam", "assets"];
+
 /// Confirms a chosen drive/folder is actually writable before Mount Settings persists it —
-/// creates `<root>\AxionDam` (if needed) and writes+removes a small marker file. Without this,
-/// "Apply" could report success even when the drive was unwritable or the letter didn't exist.
+/// creates `<root>\AxionDam\assets` (if needed) and writes+removes a small marker file. Without
+/// this, "Apply" could report success even when the drive was unwritable or the letter didn't exist.
 #[tauri::command]
 pub fn verify_mount_root(root: String) -> Result<(), String> {
-    let base_dir = PathBuf::from(normalize_root(&root)).join("AxionDam");
+    let mut base_dir = PathBuf::from(normalize_root(&root));
+    base_dir.extend(ASSETS_SUBDIR);
     std::fs::create_dir_all(&base_dir).map_err(|e| format!("Can't create folder on this drive: {e}"))?;
 
     let marker = base_dir.join(".axiondam-write-test");
@@ -234,10 +288,10 @@ pub fn verify_mount_root(root: String) -> Result<(), String> {
 }
 
 /// Resolves the local path an asset would live at, mirroring the project tree under
-/// `<mountRoot or system drive>\AxionDam\...`, without touching the filesystem.
+/// `<mountRoot or system drive>\AxionDam\assets\...`, without touching the filesystem.
 fn resolve_local_path(relative_path: &str, mount_root: Option<&str>) -> PathBuf {
     // Defaults to the system drive (e.g. C:\) when the user hasn't picked one in Mount Settings —
-    // always lands under <drive>\AxionDam\..., never the hidden AppData folder.
+    // always lands under <drive>\AxionDam\assets\..., never the hidden AppData folder.
     let root = match mount_root {
         Some(root) if !root.trim().is_empty() => normalize_root(root),
         _ => {
@@ -245,7 +299,8 @@ fn resolve_local_path(relative_path: &str, mount_root: Option<&str>) -> PathBuf 
             normalize_root(&system_drive)
         }
     };
-    let base_dir = PathBuf::from(root).join("AxionDam");
+    let mut base_dir = PathBuf::from(root);
+    base_dir.extend(ASSETS_SUBDIR);
     sanitize_join(&base_dir, relative_path)
 }
 

@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Undo2, Trash2, ImageOff } from "lucide-react";
+import { Undo2, Trash2, ImageOff, ZoomIn, RotateCcw } from "lucide-react";
 import { detectShape, type Point } from "@/utils/shapeDetection";
 
 type StrokeTool = "pen" | "circle" | "rectangle" | "triangle";
@@ -70,10 +70,19 @@ interface AnnotationCanvasProps {
   /** A saved annotation's image (e.g. from a clicked comment) shown on top of the base image,
    *  aligned pixel-for-pixel with it. */
   overlayImageUrl?: string | null;
+  /** Scroll-to-zoom level and pan offset (container-relative px) — controlled from the parent so
+   *  two side-by-side panes can share the same values and zoom/pan together. Omit both (and
+   *  onZoomPanChange) to disable zooming for this instance entirely. */
+  zoom?: number;
+  pan?: { x: number; y: number };
+  onZoomPanChange?: (zoom: number, pan: { x: number; y: number }) => void;
 }
 
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCanvasProps>(function AnnotationCanvas(
-  { imageUrl, alt, active, lineWidth, overlayImageUrl },
+  { imageUrl, alt, active, lineWidth, overlayImageUrl, zoom = 1, pan = { x: 0, y: 0 }, onZoomPanChange },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -108,6 +117,56 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     observer.observe(container);
     return () => observer.disconnect();
   }, [updateBox]);
+
+  // Zoom/pan only transforms the image, not the container — a ResizeObserver on the container
+  // won't fire for that, so re-measure the image's on-screen box explicitly whenever they change.
+  useEffect(() => {
+    updateBox();
+  }, [zoom, pan.x, pan.y, updateBox]);
+
+  // Native (non-passive) wheel listener: React's synthetic onWheel is passive by default, which
+  // silently ignores preventDefault() and lets the page/container scroll instead of zooming.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !onZoomPanChange) return;
+    function handleWheel(e: WheelEvent) {
+      e.preventDefault();
+      const rect = container!.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
+      if (nextZoom <= MIN_ZOOM + 0.001) {
+        onZoomPanChange!(MIN_ZOOM, { x: 0, y: 0 });
+        return;
+      }
+      if (nextZoom === zoom) return;
+      // Keep the point under the cursor stationary across the zoom change.
+      onZoomPanChange!(nextZoom, {
+        x: cx - ((cx - pan.x) * nextZoom) / zoom,
+        y: cy - ((cy - pan.y) * nextZoom) / zoom,
+      });
+    }
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [zoom, pan, onZoomPanChange]);
+
+  function handlePanMouseDown(e: React.MouseEvent) {
+    if (active || zoom <= MIN_ZOOM || !onZoomPanChange) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startPan = pan;
+    function handleMove(moveEvent: MouseEvent) {
+      onZoomPanChange!(zoom, { x: startPan.x + (moveEvent.clientX - startX), y: startPan.y + (moveEvent.clientY - startY) });
+    }
+    function handleUp() {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
+    }
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+  }
 
   useEffect(() => {
     setStrokes([]);
@@ -218,21 +277,34 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     setHistoryIndex(nextHistory.length - 1);
   }
 
+  const canPan = Boolean(onZoomPanChange) && zoom > MIN_ZOOM && !active;
+
   return (
-    <div ref={containerRef} className="relative flex flex-1 items-center justify-center overflow-hidden bg-black/40 p-4">
+    <div
+      ref={containerRef}
+      onMouseDown={handlePanMouseDown}
+      className="relative flex flex-1 items-center justify-center overflow-hidden bg-black/40 p-4"
+      style={{ cursor: canPan ? "grab" : undefined }}
+    >
       {imageUrl ? (
         <>
-          <img
-            ref={imgRef}
-            src={imageUrl}
-            alt={alt}
-            className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-              updateBox();
-            }}
-          />
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0" }}
+          >
+            <img
+              ref={imgRef}
+              src={imageUrl}
+              alt={alt}
+              draggable={false}
+              className="max-h-full max-w-full rounded-md object-contain shadow-2xl"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+                updateBox();
+              }}
+            />
+          </div>
           {overlayImageUrl && (
             <img
               src={overlayImageUrl}
@@ -277,6 +349,21 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
                 className="flex size-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
               >
                 <Trash2 className="size-3.5" />
+              </button>
+            </div>
+          )}
+          {onZoomPanChange && zoom > MIN_ZOOM && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 py-1 pl-2.5 pr-1 text-xs font-medium text-white">
+              <ZoomIn className="size-3" />
+              {Math.round(zoom * 100)}%
+              <button
+                type="button"
+                onClick={() => onZoomPanChange(MIN_ZOOM, { x: 0, y: 0 })}
+                aria-label="Reset zoom"
+                title="Reset zoom"
+                className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20"
+              >
+                <RotateCcw className="size-3" />
               </button>
             </div>
           )}

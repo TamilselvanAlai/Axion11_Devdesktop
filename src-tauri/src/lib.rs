@@ -30,6 +30,14 @@ fn size_window_to_screen(window: &tauri::WebviewWindow) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            // A second launch was blocked; bring the existing window to the front instead.
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .plugin(tauri_plugin_opener::init())
         .manage(google_oauth::GoogleAuthState::default())
         .invoke_handler(tauri::generate_handler![
@@ -40,6 +48,7 @@ pub fn run() {
             google_oauth::google_app_signin,
             system_info::list_local_drives,
             local_sync::open_and_sync_asset,
+            local_sync::download_asset_to_downloads,
             local_sync::get_local_asset_info,
             local_sync::reconcile_local_assets,
             local_sync::verify_mount_root,
