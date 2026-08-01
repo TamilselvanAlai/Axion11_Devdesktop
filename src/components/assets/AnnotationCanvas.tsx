@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Undo2, Trash2, ImageOff, ZoomIn, RotateCcw } from "lucide-react";
+import { Undo2, Trash2, ImageOff, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { detectShape, type Point } from "@/utils/shapeDetection";
 
 type StrokeTool = "pen" | "circle" | "rectangle" | "triangle";
@@ -124,6 +124,25 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     updateBox();
   }, [zoom, pan.x, pan.y, updateBox]);
 
+  // Shared by wheel-zoom and the +/- buttons: changes zoom while keeping the given point
+  // (container-relative px) stationary on screen across the change.
+  const zoomAround = useCallback(
+    (cx: number, cy: number, nextZoomRaw: number) => {
+      if (!onZoomPanChange) return;
+      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoomRaw));
+      if (nextZoom <= MIN_ZOOM + 0.001) {
+        onZoomPanChange(MIN_ZOOM, { x: 0, y: 0 });
+        return;
+      }
+      if (nextZoom === zoom) return;
+      onZoomPanChange(nextZoom, {
+        x: cx - ((cx - pan.x) * nextZoom) / zoom,
+        y: cy - ((cy - pan.y) * nextZoom) / zoom,
+      });
+    },
+    [zoom, pan, onZoomPanChange]
+  );
+
   // Native (non-passive) wheel listener: React's synthetic onWheel is passive by default, which
   // silently ignores preventDefault() and lets the page/container scroll instead of zooming.
   useEffect(() => {
@@ -132,24 +151,26 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     function handleWheel(e: WheelEvent) {
       e.preventDefault();
       const rect = container!.getBoundingClientRect();
-      const cx = e.clientX - rect.left;
-      const cy = e.clientY - rect.top;
-      const factor = Math.exp(-e.deltaY * 0.0015);
-      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * factor));
-      if (nextZoom <= MIN_ZOOM + 0.001) {
-        onZoomPanChange!(MIN_ZOOM, { x: 0, y: 0 });
-        return;
-      }
-      if (nextZoom === zoom) return;
-      // Keep the point under the cursor stationary across the zoom change.
-      onZoomPanChange!(nextZoom, {
-        x: cx - ((cx - pan.x) * nextZoom) / zoom,
-        y: cy - ((cy - pan.y) * nextZoom) / zoom,
-      });
+      zoomAround(e.clientX - rect.left, e.clientY - rect.top, zoom * Math.exp(-e.deltaY * 0.0015));
     }
     container.addEventListener("wheel", handleWheel, { passive: false });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [zoom, pan, onZoomPanChange]);
+  }, [zoom, zoomAround, onZoomPanChange]);
+
+  const ZOOM_BUTTON_STEP = 1.25;
+
+  // Zoom in/out buttons zoom around the container's center rather than a cursor position.
+  function handleZoomInButton() {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    zoomAround(rect.width / 2, rect.height / 2, zoom * ZOOM_BUTTON_STEP);
+  }
+
+  function handleZoomOutButton() {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    zoomAround(rect.width / 2, rect.height / 2, zoom / ZOOM_BUTTON_STEP);
+  }
 
   function handlePanMouseDown(e: React.MouseEvent) {
     if (active || zoom <= MIN_ZOOM || !onZoomPanChange) return;
@@ -352,18 +373,38 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
               </button>
             </div>
           )}
-          {onZoomPanChange && zoom > MIN_ZOOM && (
-            <div className="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-full bg-black/60 py-1 pl-2.5 pr-1 text-xs font-medium text-white">
-              <ZoomIn className="size-3" />
-              {Math.round(zoom * 100)}%
+          {onZoomPanChange && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-0.5 rounded-full bg-black/60 p-1 text-xs font-medium text-white">
+              <button
+                type="button"
+                onClick={handleZoomOutButton}
+                disabled={zoom <= MIN_ZOOM}
+                aria-label="Zoom out"
+                title="Zoom out"
+                className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ZoomOut className="size-3" />
+              </button>
+              <span className="min-w-[3.5ch] text-center tabular-nums">{Math.round(zoom * 100)}%</span>
+              <button
+                type="button"
+                onClick={handleZoomInButton}
+                disabled={zoom >= MAX_ZOOM}
+                aria-label="Zoom in"
+                title="Zoom in"
+                className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <ZoomIn className="size-3" />
+              </button>
               <button
                 type="button"
                 onClick={() => onZoomPanChange(MIN_ZOOM, { x: 0, y: 0 })}
+                disabled={zoom <= MIN_ZOOM}
                 aria-label="Reset zoom"
                 title="Reset zoom"
-                className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20"
+                className="flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
               >
-                <RotateCcw className="size-3" />
+                <Maximize2 className="size-3" />
               </button>
             </div>
           )}

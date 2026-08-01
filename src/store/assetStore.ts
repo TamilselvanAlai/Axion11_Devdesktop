@@ -24,6 +24,12 @@ interface AssetStoreState {
    *  depends on this to re-check its file's local presence without polling. */
   localSyncTick: number;
   bumpLocalSyncTick: () => void;
+  /** Bumped every time refetchAssets() completes — e.g. after an upload, or on each batch
+   *  status poll tick while one is processing. useAssetDetail depends on this so the currently
+   *  open Info panel picks up server-side changes (a preview/thumbnail that just finished
+   *  generating, a status change) to the same asset it's already showing, instead of only ever
+   *  refetching when the selected id itself changes. */
+  assetsRefreshTick: number;
   /** Scope backing the currently-displayed asset list, set by useAssets on every fetch —
    *  lets actions taken elsewhere (e.g. approve/reject in the detail panel) refresh the
    *  list without needing to know or re-derive the scope themselves. */
@@ -83,6 +89,7 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   multiSelectedIds: new Set(),
   localSyncTick: 0,
   bumpLocalSyncTick: () => set((state) => ({ localSyncTick: state.localSyncTick + 1 })),
+  assetsRefreshTick: 0,
   currentScope: null,
   uploadingBatches: {},
   setUploadingBatch: (batchId, upload) =>
@@ -103,7 +110,7 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
     const { currentScope } = get();
     if (!currentScope) return;
     const assets = await assetService.listAssets(currentScope);
-    set({ assets, status: "success" });
+    set((state) => ({ assets, status: "success", assetsRefreshTick: state.assetsRefreshTick + 1 }));
   },
   addAssets: (newAssets) => set((state) => ({ assets: [...newAssets, ...state.assets] })),
   setFolderSummary: (folderSummary) => set({ folderSummary, status: "success" }),

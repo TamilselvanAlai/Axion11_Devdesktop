@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { CheckCircle, Lock, Unlock, Eye, Loader2, RefreshCw, Check, X, Pencil, Layers } from "lucide-react";
+import { CheckCircle, Lock, Unlock, Eye, Loader2, RefreshCw, Check, X, Pencil, Layers, Undo2 } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
@@ -30,13 +30,14 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const status = getStatusMeta(detail.status, detail.established);
   const projectTree = useAssetStore((s) => s.projectTree);
   const selectAsset = useAssetStore((s) => s.selectAsset);
+  const assetsRefreshTick = useAssetStore((s) => s.assetsRefreshTick);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [compareOpen, setCompareOpen] = useState(false);
-  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | "revoke" | null>(null);
   const [localInfo, setLocalInfo] = useState<OpenAssetResult | null>(null);
   const [versions, setVersions] = useState<Asset[] | null>(null);
   const [productionSeconds, setProductionSeconds] = useState<number | null>(null);
@@ -46,16 +47,25 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   // app (no re-download) — surfaced as "Retouch" so it's clear no fresh download is happening.
   const isRetouch = isTauri && localInfo !== null;
 
+  // Tracks the previously-loaded id so the effect below can tell "switched to a different
+  // asset" (clear immediately, avoid flashing the old asset's versions) apart from "same asset,
+  // background refresh tick" (leave the strip showing its current data until the new data
+  // arrives, rather than blanking out on every tick).
+  const previousDetailIdRef = useRef<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    setVersions(null);
+    if (previousDetailIdRef.current !== detail.id) {
+      setVersions(null);
+    }
+    previousDetailIdRef.current = detail.id;
     assetService.getVersions(detail.id).then((data) => {
       if (!cancelled) setVersions(data);
     });
     return () => {
       cancelled = true;
     };
-  }, [detail.id]);
+  }, [detail.id, assetsRefreshTick]);
 
   // Server-tracked total editing time for this asset, across every user — shown to all users,
   // unlike "Time Spent" below which is a local-only, current-machine timestamp.
@@ -143,12 +153,13 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     setPreviewOpen(true);
   }
 
-  async function handleDecision(decision: "approve" | "reject") {
+  async function handleDecision(decision: "approve" | "reject" | "revoke") {
     setDeciding(decision);
     try {
       if (decision === "approve") await assetService.approveAsset(detail.id);
-      else await assetService.rejectAsset(detail.id);
-      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
+      else if (decision === "reject") await assetService.rejectAsset(detail.id);
+      else await assetService.revokeApproval(detail.id);
+      toast.success(decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Approval revoked.");
       assetService.getVersions(detail.id).then(setVersions);
       onStatusChange?.();
     } catch {
@@ -276,14 +287,26 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       {isQc && (
         <div className="shrink-0 border-t border-border p-4">
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => handleDecision("approve")}
-              disabled={deciding !== null || detail.status === "approved" || detail.status === "live"}
-              className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white shadow-md shadow-success/20 transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-              Approve
-            </button>
+            {detail.status === "approved" ? (
+              <button
+                onClick={() => handleDecision("revoke")}
+                disabled={deciding !== null}
+                title="Move this back out of approved, without rejecting it — it re-enters the normal approve/reject flow."
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deciding === "revoke" ? <Loader2 className="size-3 animate-spin" /> : <Undo2 className="size-3" />}
+                Revoke Approval
+              </button>
+            ) : (
+              <button
+                onClick={() => handleDecision("approve")}
+                disabled={deciding !== null || detail.status === "live"}
+                className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white shadow-md shadow-success/20 transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                Approve
+              </button>
+            )}
             <button
               onClick={() => handleDecision("reject")}
               disabled={deciding !== null || detail.status === "rejected" || detail.status === "live"}

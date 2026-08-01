@@ -1,4 +1,4 @@
-export type AssetStatus = "draft" | "approved" | "rejected" | "live";
+export type AssetStatus = "draft" | "approved" | "rejected" | "live" | "revoked";
 
 export type AssetFileType = "TIFF" | "PSD" | "CR3" | "HEIC" | "JPG" | "PNG" | "WEBP" | "MP4" | "ZIP" | "OTHER";
 

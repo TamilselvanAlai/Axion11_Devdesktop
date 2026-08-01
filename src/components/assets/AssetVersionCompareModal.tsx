@@ -13,6 +13,7 @@ import {
   SplitSquareHorizontal,
   ChevronLeft,
   ChevronRight,
+  Undo2,
 } from "lucide-react";
 import { AssetCommentsPanel } from "@/components/assets/AssetCommentsPanel";
 import { AssetDownloadDialog } from "@/components/assets/AssetDownloadDialog";
@@ -142,7 +143,7 @@ export function AssetVersionCompareModal({
   const [versions, setVersions] = useState<Asset[] | null>(null);
   const [leftId, setLeftId] = useState<string>(assetId);
   const [rightId, setRightId] = useState<string>(assetId);
-  const [deciding, setDeciding] = useState<"approve" | "reject" | null>(null);
+  const [deciding, setDeciding] = useState<"approve" | "reject" | "revoke" | null>(null);
   const [drawingActive, setDrawingActive] = useState(false);
   const [drawingWidth, setDrawingWidth] = useState(4);
   const [compareLayout, setCompareLayout] = useState<CompareLayout>(initialLayout ?? "side-by-side");
@@ -265,13 +266,14 @@ export function AssetVersionCompareModal({
   const left = versions?.find((v) => v.id === leftId);
   const right = versions?.find((v) => v.id === rightId);
 
-  async function handleDecision(decision: "approve" | "reject") {
+  async function handleDecision(decision: "approve" | "reject" | "revoke") {
     if (!right) return;
     setDeciding(decision);
     try {
       if (decision === "approve") await assetService.approveAsset(right.id);
-      else await assetService.rejectAsset(right.id);
-      toast.success(decision === "approve" ? "Asset approved." : "Asset rejected.");
+      else if (decision === "reject") await assetService.rejectAsset(right.id);
+      else await assetService.revokeApproval(right.id);
+      toast.success(decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Approval revoked.");
       const refreshed = await assetService.getVersions(assetId);
       setVersions(refreshed);
       onStatusChange?.();
@@ -565,15 +567,28 @@ export function AssetVersionCompareModal({
           {isQc && right && (
             <div className="shrink-0 border-t border-border p-3">
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleDecision("approve")}
-                  disabled={deciding !== null || right.status === "approved" || right.status === "live"}
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                  Approve
-                </button>
+                {right.status === "approved" ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDecision("revoke")}
+                    disabled={deciding !== null}
+                    title="Move this back out of approved, without rejecting it — it re-enters the normal approve/reject flow."
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deciding === "revoke" ? <Loader2 className="size-3 animate-spin" /> : <Undo2 className="size-3" />}
+                    Revoke Approval
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleDecision("approve")}
+                    disabled={deciding !== null || right.status === "live"}
+                    className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
+                    Approve
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => handleDecision("reject")}

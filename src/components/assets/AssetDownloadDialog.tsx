@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, File as FileIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,7 @@ import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
 import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
-import { buildAssetRelativePath } from "@/utils/assetPath";
+import { findAncestorPath } from "@/utils/assetPath";
 import type { Asset } from "@/types";
 
 /** "VE" always means the current working/draft copy, "v1" is always the original source, and
@@ -27,13 +27,13 @@ function versionLabel(asset: Asset): string {
   return `${asset.version} (Final)`;
 }
 
-/** Tags the version onto the saved filename (e.g. "shot.tif" -> "shot_v1.tif") so downloading
- *  several versions of the same asset never collides into ambiguous "shot (1).tif" copies. */
-function versionedFileName(asset: Asset): string {
-  const dot = asset.name.lastIndexOf(".");
-  const base = dot > 0 ? asset.name.slice(0, dot) : asset.name;
-  const ext = dot > 0 ? asset.name.slice(dot) : "";
-  return `${base}_${asset.version}${ext}`;
+/** The fixed local subfolder a version is saved under (mirrors versionLabel's Source/Draft/Final
+ *  split) so downloading several versions of the same asset lands in separate, predictable
+ *  folders instead of colliding on one filename. */
+function versionFolderName(asset: Asset): string {
+  if (asset.version === "VE") return "Draft";
+  if (asset.version === "v1") return "Source";
+  return "Final";
 }
 
 interface AssetDownloadDialogProps {
@@ -71,15 +71,20 @@ export function AssetDownloadDialog({ open, onOpenChange, versions, defaultSelec
     // sane order instead of racing each other.
     for (const v of toDownload) {
       try {
-        const fileName = versionedFileName(v);
-        // Mirrors the project tree the same way opening a file does (see AssetInfoPanel) so a
-        // downloaded copy lands next to everything else this app syncs locally instead of in a
-        // separate flat folder — falls back to a bare filename under AxionDam\assets\ only if
-        // the tree hasn't resolved this batch yet, rather than blocking the download entirely.
-        const relativePath = (v.batchId && buildAssetRelativePath(projectTree, v.batchId, fileName)) || fileName;
+        // Mirrors the project tree the same way opening a file does (see AssetInfoPanel), plus
+        // a Source/Draft/Final subfolder so different versions of the same filename never
+        // collide — falls back to just the version folder if the tree hasn't resolved this
+        // batch yet, rather than blocking the download entirely.
+        const ancestors = (v.batchId && findAncestorPath(projectTree, v.batchId)) || [];
+        const relativePath = [...ancestors, versionFolderName(v), v.name].join("/");
         const savedPath = await localSyncService.downloadToMount(v.downloadUrl, relativePath, mountPoint);
         assetService.recordDownload(v.id);
-        toast.success(savedPath ? `Saved ${fileName} to ${savedPath}` : `Downloaded ${fileName}`);
+        toast.success(savedPath ? `Saved ${v.name} to ${savedPath}` : `Downloaded ${v.name}`, {
+          closeButton: true,
+          action: savedPath
+            ? { label: <FileIcon className="size-4" />, onClick: () => localSyncService.revealInFileManager(savedPath) }
+            : undefined,
+        });
       } catch (err) {
         failed++;
         toast.error(err instanceof Error ? err.message : `Failed to download ${versionLabel(v)}.`);

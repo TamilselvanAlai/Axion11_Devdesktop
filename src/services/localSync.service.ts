@@ -39,7 +39,7 @@ async function openExternalUrl(url: string): Promise<void> {
   window.open(url, "_blank");
 }
 
-/** Saves a file into the same `<mountRoot>\AxionDam\assets\...` tree that mirrors the app's
+/** Saves a file into the same `<mountRoot>\AxionDam\...` tree that mirrors the app's
  *  project/batch structure (see openAndSync) — the actual "save this file" action, as opposed to
  *  openExternalUrl, which just hands the URL to the OS/browser to do whatever it wants with
  *  (unreliable for formats like TIFF that have no good default handler, and even when "it works"
@@ -55,8 +55,18 @@ async function downloadToMount(url: string, relativePath: string, mountRoot?: st
   return invoke<string>("download_asset_to_mount", { url, relativePath, mountRoot: mountRoot ?? null });
 }
 
+/** Reveals a downloaded file in the OS file explorer (Windows Explorer, Finder, etc.) — the
+ *  "Show in folder" action from a download's success toast. No-ops on the web build, where the
+ *  app has no filesystem access to reveal anything. */
+async function revealInFileManager(path: string): Promise<void> {
+  if (!isTauri() || !path) return;
+  const { revealItemInDir } = await import("@tauri-apps/plugin-opener");
+  await revealItemInDir(path);
+}
+
 export const localSyncService = {
   isTauri,
+  revealInFileManager,
   openExternalUrl,
   downloadToMount,
 

@@ -26,6 +26,25 @@ export function useFileUpload() {
    *  batchEvents.ts) — e.g. a network that buffers/blocks text/event-stream. Also clears the
    *  "Processing…" indicator (see setUploadingBatch) once done, however it ends. */
   async function pollBatchUntilComplete(batchId: string) {
+    // The upload this is chained after (see uploadFiles/uploadFolder below) is fully awaited
+    // before this runs — for a fast, small upload the server can already have flipped the batch
+    // to COMPLETED and published its one-shot SSE event before we ever subscribe. publishStatus
+    // only reaches emitters connected *at that moment*; a subscription that opens after the fact
+    // waits for an event that already happened and isn't coming again, hanging until the deadline
+    // below. Checking the already-current status up front closes that race without changing when
+    // the upload itself happens.
+    try {
+      const alreadyDone = await assetService.getBatchUploadStatus(batchId);
+      if (alreadyDone === "COMPLETED" || alreadyDone === "FAILED") {
+        refetchAssets();
+        if (alreadyDone === "COMPLETED") refetchProjectTree();
+        setUploadingBatch(batchId, null);
+        return;
+      }
+    } catch {
+      // batch likely gone — fall through to the normal flow below, which handles this too
+    }
+
     const deadline = Date.now() + POLL_TIMEOUT_MS;
 
     async function pollFallback() {
@@ -77,17 +96,37 @@ export function useFileUpload() {
 
   async function uploadFiles(files: File[], target: UploadTarget) {
     if (files.length === 0) return;
-    const label = `${files.length} file${files.length === 1 ? "" : "s"}`;
-    const toastId = toast.loading(`Uploading ${label}…`);
+    const total = files.length;
+    const assetWord = (n: number) => (n === 1 ? "asset" : "assets");
+    const toastId = toast.loading(`Uploading files… 0 of ${total} completed (0%)`);
     const fileNames = files.map((f) => f.name);
-    if (target.type === "batch") setUploadingBatch(target.id, { total: files.length, phase: "uploading", fileNames });
+    if (target.type === "batch") setUploadingBatch(target.id, { total, phase: "uploading", fileNames });
     try {
-      await assetService.uploadFiles(files, target);
-      toast.success(`Uploaded ${label}`, { id: toastId });
+      const result = await assetService.uploadFiles(files, target, (completed, totalCount) => {
+        const pct = Math.round((completed / totalCount) * 100);
+        toast.loading(`Uploading files… ${completed} of ${totalCount} completed (${pct}%)`, { id: toastId });
+      });
       refetchAssets();
-      if (target.type === "batch") {
-        setUploadingBatch(target.id, { total: files.length, phase: "processing", fileNames });
+
+      if (result.failed.length === 0) {
+        toast.success(`${total} ${assetWord(total)} uploaded successfully`, { id: toastId });
+      } else {
+        const retry = { label: "Retry", onClick: () => uploadFiles(result.failed.map((f) => f.file), target) };
+        if (result.succeeded === 0) {
+          toast.error(`Failed to upload ${result.failed.length} ${assetWord(result.failed.length)}.`, { id: toastId, action: retry });
+        } else {
+          toast.warning(`Uploaded ${result.succeeded} of ${total} ${assetWord(total)} · ${result.failed.length} failed`, {
+            id: toastId,
+            action: retry,
+          });
+        }
+      }
+
+      if (target.type === "batch" && result.succeeded > 0) {
+        setUploadingBatch(target.id, { total, phase: "processing", fileNames });
         pollBatchUntilComplete(target.id);
+      } else if (target.type === "batch") {
+        setUploadingBatch(target.id, null);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Upload failed.", { id: toastId });

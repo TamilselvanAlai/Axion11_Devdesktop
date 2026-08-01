@@ -2,11 +2,16 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
+import { useAssetStore } from "@/store";
 import type { AssetDetail, LoadingState } from "@/types";
 
 export function useAssetDetail(assetId: string | null) {
   const [detail, setDetail] = useState<AssetDetail | null>(null);
   const [status, setStatus] = useState<LoadingState>("idle");
+  // See assetStore's doc comment — bumps whenever the asset list refreshes (upload completing,
+  // batch status poll ticks, etc.), so this panel's data doesn't go stale just because the
+  // selected id itself never changed.
+  const assetsRefreshTick = useAssetStore((s) => s.assetsRefreshTick);
 
   const refetch = useCallback(() => {
     if (!assetId) return;
@@ -32,7 +37,7 @@ export function useAssetDetail(assetId: string | null) {
     return () => {
       cancelled = true;
     };
-  }, [assetId]);
+  }, [assetId, assetsRefreshTick]);
 
   // A locally-edited file that was opened via "Open File" just got auto-synced back — it
   // updates the same version's row in place (draft + established) rather than forking a new

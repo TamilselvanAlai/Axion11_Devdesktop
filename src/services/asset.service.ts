@@ -58,6 +58,7 @@ function toAssetStatus(approvalStatus: string | null, qcCheck: string | null): A
     case "approved": return "approved";
     case "rejected": return "rejected";
     case "live":     return "live";
+    case "revoked":  return "revoked";
   }
 
   // Old QC-based fallback: before a human explicitly approves/rejects an asset
@@ -205,6 +206,11 @@ async function uploadOneFile(file: File, target: { batchId?: string; projectId?:
   }
 }
 
+export interface UploadFilesResult {
+  succeeded: number;
+  failed: { file: File; error: unknown }[];
+}
+
 // ── Public service ────────────────────────────────────────────────────────
 
 export const assetService = {
@@ -273,21 +279,39 @@ export const assetService = {
    *  since Cloud Run resets the connection before a response body is readable). Falls back to a
    *  direct multipart POST per file only if signed-URL generation itself is unavailable (e.g.
    *  local dev without GCS service-account credentials). */
-  async uploadFiles(files: File[], target: { type: "project" | "batch"; id: string }): Promise<void> {
-    if (files.length === 0) return;
+  async uploadFiles(
+    files: File[],
+    target: { type: "project" | "batch"; id: string },
+    /** Fired after each individual file finishes (succeeding or failing), so the caller (see
+     *  useFileUpload's toast) can show live "N of M" progress instead of a static "Uploading N
+     *  files…" for the whole batch's entire duration. */
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<UploadFilesResult> {
+    if (files.length === 0) return { succeeded: 0, failed: [] };
 
-    if (target.type === "batch") {
-      const batchId = target.id.startsWith("b-") ? target.id.slice(2) : target.id;
+    const batchId = target.type === "batch" ? (target.id.startsWith("b-") ? target.id.slice(2) : target.id) : null;
+    const projectId = target.type === "project" ? (target.id.startsWith("p-") ? target.id.slice(2) : target.id) : null;
+
+    if (batchId) {
       await apiClient.post(`/batches/${encodeURIComponent(batchId)}/start-upload`, null, { params: { total: files.length } });
-      for (const file of files) {
-        await uploadOneFile(file, { batchId });
-      }
-    } else {
-      const projectId = target.id.startsWith("p-") ? target.id.slice(2) : target.id;
-      for (const file of files) {
-        await uploadOneFile(file, { projectId });
-      }
     }
+
+    // One file failing (a bad file, a flaky connection) shouldn't abort the rest of the batch —
+    // caught per-file so a 47/48 success still lands 47 rows instead of zero, with the 1 failure
+    // surfaced back to the caller instead of silently losing which file(s) need a retry.
+    let succeeded = 0;
+    const failed: { file: File; error: unknown }[] = [];
+    for (const file of files) {
+      try {
+        await uploadOneFile(file, batchId ? { batchId } : { projectId: projectId! });
+        succeeded++;
+      } catch (error) {
+        failed.push({ file, error });
+      }
+      onProgress?.(succeeded + failed.length, files.length);
+    }
+
+    return { succeeded, failed };
   },
 
   /** Creates a brand-new batch (sub-folder) with the given files in one call — this is what a
@@ -377,6 +401,12 @@ export const assetService = {
    *  currently "approved". */
   async publishAsset(assetId: string): Promise<void> {
     await apiClient.post(`/assets/${encodeURIComponent(assetId)}/publish`);
+  },
+
+  /** Reverses an approval decision, landing on "revoked" — backend rejects this unless the
+   *  asset is currently "approved" (not yet "live"). */
+  async revokeApproval(assetId: string): Promise<void> {
+    await apiClient.post(`/assets/${encodeURIComponent(assetId)}/revoke-approval`);
   },
 
   async getComments(assetId: string): Promise<AssetComment[]> {

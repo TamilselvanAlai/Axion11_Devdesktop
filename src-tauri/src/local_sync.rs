@@ -156,15 +156,17 @@ pub async fn open_and_sync_asset(
     Ok(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
 }
 
-/// Downloads a version into the same `<mountRoot>\AxionDam\assets\...` tree the rest of the app
-/// mirrors the project/batch structure into (see `resolve_local_path`) — a plain one-off copy for
-/// the "Download" action (compare view, etc.), distinct from `open_and_sync_asset` in that it
-/// doesn't open the file or watch it for re-upload. Previously this saved to the flat OS Downloads
-/// folder, which put downloaded files in a different location than everything else this app syncs
-/// locally. Opening the source URL directly (e.g. via the opener plugin) isn't a real substitute
-/// for this: it just launches whatever's associated with that URL/file type — for a TIFF that's
-/// often nothing usable, and even when it "works" the browser/OS controls where the bytes land,
-/// not the app.
+/// Downloads a version into the same `<mountRoot>\AxionDam\...` tree the rest of the app mirrors
+/// the project/batch structure into (see `resolve_local_path`) — a plain one-off copy for the
+/// "Download" action (compare view, etc.), distinct from `open_and_sync_asset` in that it doesn't
+/// open the file or watch it for re-upload. The caller (see AssetDownloadDialog) folds a
+/// Source/Draft/Final subfolder into `relative_path` ahead of the filename so different versions
+/// of the same filename land in different places instead of colliding. Previously this saved to
+/// the flat OS Downloads folder, which put downloaded files in a different location than
+/// everything else this app syncs locally. Opening the source URL directly (e.g. via the opener
+/// plugin) isn't a real substitute for this: it just launches whatever's associated with that
+/// URL/file type — for a TIFF that's often nothing usable, and even when it "works" the
+/// browser/OS controls where the bytes land, not the app.
 #[tauri::command]
 pub async fn download_asset_to_mount(
     app: AppHandle,
@@ -242,10 +244,10 @@ fn normalize_root(root: &str) -> String {
 /// Every asset lives under this folder within the mount root — kept as one constant so the
 /// write-test in `verify_mount_root` always checks the exact directory `resolve_local_path`
 /// actually uses, instead of the two drifting independently.
-const ASSETS_SUBDIR: [&str; 2] = ["AxionDam", "assets"];
+const ASSETS_SUBDIR: [&str; 1] = ["AxionDam"];
 
 /// Confirms a chosen drive/folder is actually writable before Mount Settings persists it —
-/// creates `<root>\AxionDam\assets` (if needed) and writes+removes a small marker file. Without
+/// creates `<root>\AxionDam` (if needed) and writes+removes a small marker file. Without
 /// this, "Apply" could report success even when the drive was unwritable or the letter didn't exist.
 #[tauri::command]
 pub fn verify_mount_root(root: String) -> Result<(), String> {
@@ -261,10 +263,10 @@ pub fn verify_mount_root(root: String) -> Result<(), String> {
 }
 
 /// Resolves the local path an asset would live at, mirroring the project tree under
-/// `<mountRoot or system drive>\AxionDam\assets\...`, without touching the filesystem.
+/// `<mountRoot or system drive>\AxionDam\...`, without touching the filesystem.
 fn resolve_local_path(relative_path: &str, mount_root: Option<&str>) -> PathBuf {
     // Defaults to the system drive (e.g. C:\) when the user hasn't picked one in Mount Settings —
-    // always lands under <drive>\AxionDam\assets\..., never the hidden AppData folder.
+    // always lands under <drive>\AxionDam\..., never the hidden AppData folder.
     let root = match mount_root {
         Some(root) if !root.trim().is_empty() => normalize_root(root),
         _ => {
