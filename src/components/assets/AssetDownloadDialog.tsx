@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
 import { isUrl } from "@/utils/helpers";
+import { useAssetStore, useMountSettingsStore } from "@/store";
+import { buildAssetRelativePath } from "@/utils/assetPath";
 import type { Asset } from "@/types";
 
 /** "VE" always means the current working/draft copy, "v1" is always the original source, and
@@ -43,6 +45,8 @@ interface AssetDownloadDialogProps {
 }
 
 export function AssetDownloadDialog({ open, onOpenChange, versions, defaultSelectedId }: AssetDownloadDialogProps) {
+  const projectTree = useAssetStore((s) => s.projectTree);
+  const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const downloadable = versions.filter((v): v is Asset & { downloadUrl: string } => isUrl(v.downloadUrl ?? ""));
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(defaultSelectedId && downloadable.some((v) => v.id === defaultSelectedId) ? [defaultSelectedId] : [])
@@ -67,9 +71,15 @@ export function AssetDownloadDialog({ open, onOpenChange, versions, defaultSelec
     // sane order instead of racing each other.
     for (const v of toDownload) {
       try {
-        const savedPath = await localSyncService.downloadToDownloads(v.downloadUrl, versionedFileName(v));
+        const fileName = versionedFileName(v);
+        // Mirrors the project tree the same way opening a file does (see AssetInfoPanel) so a
+        // downloaded copy lands next to everything else this app syncs locally instead of in a
+        // separate flat folder — falls back to a bare filename under AxionDam\assets\ only if
+        // the tree hasn't resolved this batch yet, rather than blocking the download entirely.
+        const relativePath = (v.batchId && buildAssetRelativePath(projectTree, v.batchId, fileName)) || fileName;
+        const savedPath = await localSyncService.downloadToMount(v.downloadUrl, relativePath, mountPoint);
         assetService.recordDownload(v.id);
-        toast.success(savedPath ? `Saved ${versionedFileName(v)} to Downloads` : `Downloaded ${versionedFileName(v)}`);
+        toast.success(savedPath ? `Saved ${fileName} to ${savedPath}` : `Downloaded ${fileName}`);
       } catch (err) {
         failed++;
         toast.error(err instanceof Error ? err.message : `Failed to download ${versionLabel(v)}.`);

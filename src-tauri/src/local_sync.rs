@@ -156,52 +156,25 @@ pub async fn open_and_sync_asset(
     Ok(OpenAssetResult { local_path: local_path.to_string_lossy().to_string(), opened_at })
 }
 
-/// Downloads a version straight to the OS Downloads folder — a plain one-off copy for the
-/// "Download" action (compare view, etc.), distinct from `open_and_sync_asset`'s AxionDam
-/// mirror, which exists for the edit-and-resync workflow, not for handing someone a file. Opening
-/// the source URL directly (e.g. via the opener plugin) isn't a real substitute for this: it just
-/// launches whatever's associated with that URL/file type — for a TIFF that's often nothing
-/// usable, and even when it "works" the browser/OS controls where the bytes land, not the app.
+/// Downloads a version into the same `<mountRoot>\AxionDam\assets\...` tree the rest of the app
+/// mirrors the project/batch structure into (see `resolve_local_path`) — a plain one-off copy for
+/// the "Download" action (compare view, etc.), distinct from `open_and_sync_asset` in that it
+/// doesn't open the file or watch it for re-upload. Previously this saved to the flat OS Downloads
+/// folder, which put downloaded files in a different location than everything else this app syncs
+/// locally. Opening the source URL directly (e.g. via the opener plugin) isn't a real substitute
+/// for this: it just launches whatever's associated with that URL/file type — for a TIFF that's
+/// often nothing usable, and even when it "works" the browser/OS controls where the bytes land,
+/// not the app.
 #[tauri::command]
-pub async fn download_asset_to_downloads(app: AppHandle, url: String, file_name: String) -> Result<String, String> {
-    let downloads_dir = app
-        .path()
-        .download_dir()
-        .map_err(|e| format!("Couldn't find the Downloads folder: {e}"))?;
-    std::fs::create_dir_all(&downloads_dir).map_err(|e| format!("Failed to create Downloads folder: {e}"))?;
-
-    let target_path = unique_path(&downloads_dir, &file_name);
-
-    let response = reqwest::get(&url).await.map_err(|e| format!("Download failed: {e}"))?;
-    if !response.status().is_success() {
-        return Err(format!("Download failed with status {}", response.status()));
-    }
-    let bytes = response.bytes().await.map_err(|e| format!("Failed to read downloaded file: {e}"))?;
-    std::fs::write(&target_path, &bytes).map_err(|e| format!("Failed to save file: {e}"))?;
-
-    Ok(target_path.to_string_lossy().to_string())
-}
-
-/// Appends " (1)", " (2)", ... before the extension when `desired` already exists in `dir` —
-/// matching how browsers/the OS avoid silently overwriting an existing download.
-fn unique_path(dir: &Path, desired: &str) -> PathBuf {
-    let candidate = dir.join(desired);
-    if !candidate.exists() {
-        return candidate;
-    }
-    let stem = Path::new(desired).file_stem().and_then(|s| s.to_str()).unwrap_or(desired);
-    let ext = Path::new(desired).extension().and_then(|s| s.to_str());
-    for n in 1.. {
-        let name = match ext {
-            Some(ext) => format!("{stem} ({n}).{ext}"),
-            None => format!("{stem} ({n})"),
-        };
-        let next = dir.join(&name);
-        if !next.exists() {
-            return next;
-        }
-    }
-    unreachable!()
+pub async fn download_asset_to_mount(
+    app: AppHandle,
+    url: String,
+    relative_path: String,
+    mount_root: Option<String>,
+) -> Result<String, String> {
+    let local_path = download_asset(&app, &url, &relative_path, mount_root.as_deref()).await?;
+    record_synced(&app, &relative_path);
+    Ok(local_path.to_string_lossy().to_string())
 }
 
 /// Looks up an already-downloaded asset without downloading or opening it — lets the UI show

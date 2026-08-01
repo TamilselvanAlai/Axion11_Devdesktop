@@ -75,12 +75,15 @@ assetsRouter.get("/projects/tree", async (_req, res) => {
 assetsRouter.get("/projects/:id/summary", async (req, res) => {
   const children = await ProjectNode.find({ parentId: req.params.id }).lean();
   const summary = await Promise.all(
-    children.map(async (child) => ({
-      id: child._id,
-      name: child.name,
-      assetCount: await Asset.countDocuments({ projectId: child._id }),
-      dueDate: (child.dueDate ?? new Date()).toISOString(),
-    }))
+    children.map(async (child) => {
+      const ids = await leafProjectIds(child._id);
+      return {
+        id: child._id,
+        name: child.name,
+        assetCount: await Asset.countDocuments({ projectId: { $in: ids } }),
+        dueDate: (child.dueDate ?? new Date()).toISOString(),
+      };
+    })
   );
   res.json(summary);
 });
