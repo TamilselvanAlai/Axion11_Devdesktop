@@ -7,8 +7,20 @@ export function getInitials(name: string): string {
     .join("");
 }
 
+/** The backend serializes timestamps from Java's `LocalDateTime.now()`, which carries no
+ *  timezone at all (e.g. "2026-08-04T05:09:11") — that instant is actually UTC (the Cloud Run
+ *  container's JVM default), but a plain `new Date(iso)` on a string with no offset/`Z` gets
+ *  parsed as if it were already in the *browser's* local timezone, silently displaying the wrong
+ *  wall-clock time everywhere a viewer isn't in UTC themselves. Appends "Z" only when the string
+ *  doesn't already carry its own offset, so an already-correct ISO string (e.g. from a source
+ *  that does include one) isn't double-shifted. */
+export function parseBackendTimestamp(iso: string): Date {
+  const hasTimezone = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso);
+  return new Date(hasTimezone ? iso : `${iso}Z`);
+}
+
 export function formatRelativeTime(isoDate: string): string {
-  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const diffMs = Date.now() - parseBackendTimestamp(isoDate).getTime();
   const diffHours = Math.round(diffMs / (1000 * 60 * 60));
   if (diffHours < 1) return "just now";
   if (diffHours < 24) return `${diffHours}h ago`;

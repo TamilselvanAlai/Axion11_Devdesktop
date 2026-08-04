@@ -15,26 +15,8 @@ import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
 import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
-import { findAncestorPath } from "@/utils/assetPath";
+import { findAncestorPath, versionFolderName, versionLabel } from "@/utils/assetPath";
 import type { Asset } from "@/types";
-
-/** "VE" always means the current working/draft copy, "v1" is always the original source, and
- *  anything else numbered is a finalized version — see ImageUpload#established on the backend
- *  for why there's no in-between numbering (v1.5 etc.) in this app's version model. */
-function versionLabel(asset: Asset): string {
-  if (asset.version === "VE") return "VE (Draft)";
-  if (asset.version === "v1") return "v1 (Source)";
-  return `${asset.version} (Final)`;
-}
-
-/** The fixed local subfolder a version is saved under (mirrors versionLabel's Source/Draft/Final
- *  split) so downloading several versions of the same asset lands in separate, predictable
- *  folders instead of colliding on one filename. */
-function versionFolderName(asset: Asset): string {
-  if (asset.version === "VE") return "Draft";
-  if (asset.version === "v1") return "Source";
-  return "Final";
-}
 
 interface AssetDownloadDialogProps {
   open: boolean;

@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { sortAssets } from "@/utils/assetSort";
 import { filterAssets } from "@/utils/assetFilters";
+import { parseBackendTimestamp } from "@/utils/formatters";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetSortKey } from "@/types";
 
@@ -47,7 +48,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<AssetSortKey, number> = {
 const MIN_COLUMN_WIDTH = 60;
 
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
+  return parseBackendTimestamp(iso).toLocaleString(undefined, {
     day: "2-digit",
     month: "short",
     year: "numeric",

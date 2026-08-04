@@ -76,13 +76,17 @@ interface AnnotationCanvasProps {
   zoom?: number;
   pan?: { x: number; y: number };
   onZoomPanChange?: (zoom: number, pan: { x: number; y: number }) => void;
+  /** Two side-by-side panes share one zoom/pan state (see above) — showing the on-screen zoom
+   *  controls on both would just duplicate the same buttons twice for one shared value. Defaults
+   *  to true; the compare modal sets this false on one of its two panes. */
+  showZoomControls?: boolean;
 }
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 8;
 
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCanvasProps>(function AnnotationCanvas(
-  { imageUrl, alt, active, lineWidth, overlayImageUrl, zoom = 1, pan = { x: 0, y: 0 }, onZoomPanChange },
+  { imageUrl, alt, active, lineWidth, overlayImageUrl, zoom = 1, pan = { x: 0, y: 0 }, onZoomPanChange, showZoomControls = true },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -120,8 +124,16 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
 
   // Zoom/pan only transforms the image, not the container — a ResizeObserver on the container
   // won't fire for that, so re-measure the image's on-screen box explicitly whenever they change.
+  // The image's transform is CSS-transitioned (see the wrapper div below), but this measurement
+  // isn't — getBoundingClientRect() here reads the pre-transition position, since the effect
+  // fires right after the DOM update commits, before the transition has actually finished
+  // animating. Without the trailing re-measurement below, the canvas/annotation overlay (which
+  // is positioned from this same `box` state) would snap to the stale position immediately while
+  // the image glides smoothly past it — a visible desync between the two during every zoom step.
   useEffect(() => {
     updateBox();
+    const timer = setTimeout(updateBox, 110);
+    return () => clearTimeout(timer);
   }, [zoom, pan.x, pan.y, updateBox]);
 
   // Shared by wheel-zoom and the +/- buttons: changes zoom while keeping the given point
@@ -311,7 +323,14 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
         <>
           <div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "0 0" }}
+            style={{
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              transformOrigin: "0 0",
+              // Smooths the +/- zoom buttons' 25%-per-click jumps into a motion instead of an
+              // instant snap (which read as a flicker) — short enough to still feel responsive
+              // during continuous scroll-wheel zooming rather than visibly lagging behind it.
+              transition: "transform 100ms ease-out",
+            }}
           >
             <img
               ref={imgRef}
@@ -373,7 +392,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
               </button>
             </div>
           )}
-          {onZoomPanChange && (
+          {onZoomPanChange && showZoomControls && (
             <div className="absolute bottom-3 left-3 flex items-center gap-0.5 rounded-full bg-black/60 p-1 text-xs font-medium text-white">
               <button
                 type="button"

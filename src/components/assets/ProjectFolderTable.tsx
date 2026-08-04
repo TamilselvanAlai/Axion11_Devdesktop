@@ -8,6 +8,7 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/constants/routes";
 import { useAssetStore } from "@/store";
@@ -22,12 +23,30 @@ function formatDate(iso: string) {
 
 export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
   const navigate = useNavigate();
-  const { projectTree, expandAncestors, uploadingBatches } = useAssetStore();
+  const { projectTree, expandAncestors, uploadingBatches, multiSelectedIds, toggleMultiSelect } = useAssetStore();
+
+  function handleCheckboxClick(e: React.MouseEvent, folderId: string) {
+    e.stopPropagation();
+    toggleMultiSelect(folderId);
+  }
 
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-10">
+            <Checkbox
+              checked={folders.length > 0 && folders.every((f) => multiSelectedIds.has(f.id))}
+              aria-label="Select all folders"
+              onCheckedChange={(checked) => {
+                for (const folder of folders) {
+                  const isChecked = multiSelectedIds.has(folder.id);
+                  if (checked && !isChecked) toggleMultiSelect(folder.id);
+                  if (!checked && isChecked) toggleMultiSelect(folder.id);
+                }
+              }}
+            />
+          </TableHead>
           <TableHead>Name</TableHead>
           <TableHead>Assets</TableHead>
           <TableHead>ETA</TableHead>
@@ -39,7 +58,10 @@ export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
           return (
           <TableRow
             key={folder.id}
-            className="animate-in fade-in duration-300 cursor-pointer"
+            className={cn(
+              "animate-in fade-in duration-300 cursor-pointer",
+              multiSelectedIds.has(folder.id) && "bg-muted"
+            )}
             onClick={() => {
               // Reveal this folder in the sidebar tree the same way clicking an asset does —
               // expand every ancestor so the newly-active node isn't hidden under a collapsed
@@ -48,6 +70,9 @@ export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
               navigate(`${ROUTES.projects}/${folder.id}`);
             }}
           >
+            <TableCell onClick={(e) => handleCheckboxClick(e, folder.id)}>
+              <Checkbox checked={multiSelectedIds.has(folder.id)} aria-label={`Select ${folder.name}`} />
+            </TableCell>
             <TableCell>
               <span className="flex items-center gap-2 font-medium">
                 <Folder className="size-4 text-emerald-500" />

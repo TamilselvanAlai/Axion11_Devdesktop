@@ -5,7 +5,7 @@ import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetPreviewModal } from "@/components/assets/AssetPreviewModal";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
-import { formatHhMmSs, formatRelativeTime } from "@/utils/formatters";
+import { formatHhMmSs, parseBackendTimestamp } from "@/utils/formatters";
 import { localSyncService, type OpenAssetResult } from "@/services/localSync.service";
 import { assetService } from "@/services/asset.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
@@ -16,8 +16,12 @@ import { useUser } from "@/hooks/useUser";
 import { getStatusMeta } from "@/utils/assetStatus";
 import type { Asset, AssetDetail } from "@/types";
 
+// No explicit locale (undefined) — uses the viewer's own system/browser locale rather than
+// hardcoding "en-US", so date/time formatting actually matches "locale base" as requested.
+// parseBackendTimestamp corrects for the backend sending naive (no-timezone) timestamps that
+// are actually UTC — see its doc comment in utils/formatters.ts.
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("en-US", {
+  return parseBackendTimestamp(iso).toLocaleString(undefined, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -177,7 +181,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
     { label: "Batch", value: detail.batch },
     { label: "ETA", value: formatDateTime(detail.etaAt) },
     { label: "Assigned", value: detail.assignee.name },
-    { label: "Modified", value: formatRelativeTime(detail.modifiedAt) },
+    { label: "Uploaded", value: formatDateTime(detail.modifiedAt) },
     { label: "Production Time", value: productionSeconds !== null ? formatHhMmSs(productionSeconds) : "—" },
   ];
 

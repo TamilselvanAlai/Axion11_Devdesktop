@@ -18,6 +18,21 @@ export function useFileUpload() {
   const refetchProjectTree = useAssetStore((s) => s.refetchProjectTree);
   const setUploadingBatch = useAssetStore((s) => s.setUploadingBatch);
 
+  /** A batch reporting COMPLETED only means the DB rows exist — slower background work
+   *  (preview/thumbnail generation, AI tagging; see ImageUploadService#processConfirmedUpload,
+   *  which is deliberately deferred off the upload request/SSE-completion thread) can still be
+   *  finishing server-side for several more seconds after that. Without this, a preview that
+   *  lands after "Processing…" clears never gets picked up until someone manually reselects the
+   *  asset. Fire-and-forget — doesn't block or delay clearing the indicator itself. */
+  function scheduleTrailingRefreshes() {
+    (async () => {
+      for (const delayMs of [3000, 8000, 15000]) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+        refetchAssets();
+      }
+    })();
+  }
+
   /** Batch uploads finish processing (thumbnails, AI tagging) on a background thread — the
    *  upload request resolving only means it was accepted, not that the rows/previews exist yet.
    *  Subscribes to the batch's SSE status stream and refreshes the currently-displayed list the
@@ -37,7 +52,10 @@ export function useFileUpload() {
       const alreadyDone = await assetService.getBatchUploadStatus(batchId);
       if (alreadyDone === "COMPLETED" || alreadyDone === "FAILED") {
         refetchAssets();
-        if (alreadyDone === "COMPLETED") refetchProjectTree();
+        if (alreadyDone === "COMPLETED") {
+          refetchProjectTree();
+          scheduleTrailingRefreshes();
+        }
         setUploadingBatch(batchId, null);
         return;
       }
@@ -59,6 +77,7 @@ export function useFileUpload() {
         refetchAssets();
         if (status === "COMPLETED") {
           refetchProjectTree();
+          scheduleTrailingRefreshes();
           return;
         }
         if (status === "FAILED") return;
@@ -73,6 +92,7 @@ export function useFileUpload() {
             refetchAssets();
             if (status === "COMPLETED") {
               refetchProjectTree();
+              scheduleTrailingRefreshes();
               resolve();
             } else if (status === "FAILED") {
               resolve();

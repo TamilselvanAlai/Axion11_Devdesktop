@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { assetEditSessionService, type AssetEditSessionEntry } from "@/services/assetEditSession.service";
-import { formatDuration } from "@/utils/formatters";
+import { formatDuration, parseBackendTimestamp } from "@/utils/formatters";
 
 const END_REASON_LABEL: Record<AssetEditSessionEntry["endReason"], string> = {
   SAVED: "Saved",
@@ -14,7 +14,7 @@ const END_REASON_LABEL: Record<AssetEditSessionEntry["endReason"], string> = {
 
 function formatTimeRange(startedAt: string, endedAt: string): string {
   const opts: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
-  return `${new Date(startedAt).toLocaleTimeString("en-US", opts)} – ${new Date(endedAt).toLocaleTimeString("en-US", opts)}`;
+  return `${parseBackendTimestamp(startedAt).toLocaleTimeString(undefined, opts)} – ${parseBackendTimestamp(endedAt).toLocaleTimeString(undefined, opts)}`;
 }
 
 export function AssetsEditedModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {

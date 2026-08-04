@@ -58,7 +58,6 @@ function toAssetStatus(approvalStatus: string | null, qcCheck: string | null): A
     case "approved": return "approved";
     case "rejected": return "rejected";
     case "live":     return "live";
-    case "revoked":  return "revoked";
   }
 
   // Old QC-based fallback: before a human explicitly approves/rejects an asset
@@ -368,6 +367,45 @@ export const assetService = {
         assetCount: b.totalImages ?? 0,
         dueDate: b.dueDate ?? "—",
       }));
+  },
+
+  /** Every version of every asset under one or more folder-list tree nodes — used by the bulk
+   *  "Download" action on the folder list (see ProjectFolderTable), where each selected row can
+   *  itself be a leaf batch (uploads live directly on it) or a folder of sub-batches. Descends
+   *  the already-loaded project tree to find every leaf batch under each selected node, then
+   *  pulls that batch's full upload history (every version, not just the latest — unlike
+   *  listAssets/getBatch's table-view path, this needs v1/VE/vN to sort into Source/Draft/Final). */
+  async getAllAssetsInFolders(folderNodeIds: string[], projectTree: ProjectNode[]): Promise<Asset[]> {
+    const targetIds = new Set(folderNodeIds);
+    const leafBatchIds = new Set<string>();
+
+    function collectLeaves(node: ProjectNode) {
+      if (!node.children || node.children.length === 0) {
+        if (node.type === "batch") leafBatchIds.add(node.id);
+        return;
+      }
+      for (const child of node.children) collectLeaves(child);
+    }
+
+    function walk(nodes: ProjectNode[]) {
+      for (const node of nodes) {
+        if (targetIds.has(node.id)) {
+          collectLeaves(node);
+        } else if (node.children?.length) {
+          walk(node.children);
+        }
+      }
+    }
+    walk(projectTree);
+
+    const perBatch = await Promise.all(
+      Array.from(leafBatchIds).map(async (nodeId) => {
+        const batchId = nodeId.slice(2);
+        const { data } = await apiClient.get<BatchWithUploadsApiDto>(`/batches/${batchId}`);
+        return (data.imageUploads ?? []).map(toAsset);
+      })
+    );
+    return perBatch.flat();
   },
 
   async getAssetDetail(assetId: string): Promise<AssetDetail | null> {

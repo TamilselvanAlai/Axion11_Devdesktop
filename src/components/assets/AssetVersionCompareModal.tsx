@@ -410,6 +410,7 @@ export function AssetVersionCompareModal({
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
+                showZoomControls={false}
               />
             </div>
           ) : (

@@ -1,4 +1,4 @@
-import type { ProjectNode } from "@/types";
+import type { Asset, ProjectNode } from "@/types";
 
 /** The names of every ancestor folder (project → … → targetId), targetId included — the full
  *  breadcrumb trail for a node, e.g. ["Test01", "B3", "002", "SUBB001"]. */
@@ -52,4 +52,23 @@ export function findAncestorIds(nodes: ProjectNode[], targetId: string, trail: s
     }
   }
   return null;
+}
+
+/** "VE" always means the current working/draft copy, "v1" is always the original source, and
+ *  anything else numbered is a finalized version — see ImageUpload#established on the backend
+ *  for why there's no in-between numbering (v1.5 etc.) in this app's version model. */
+export function versionLabel(asset: Asset): string {
+  if (asset.version === "VE") return "VE (Draft)";
+  if (asset.version === "v1") return "v1 (Source)";
+  return `${asset.version} (Final)`;
+}
+
+/** The fixed local subfolder a version is saved under (mirrors versionLabel's Source/Draft/Final
+ *  split) so downloading several versions of the same asset lands in separate, predictable
+ *  folders instead of colliding on one filename. Shared between the single-asset download dialog
+ *  and the bulk folder-download dialog. */
+export function versionFolderName(asset: Asset): "Source" | "Draft" | "Final" {
+  if (asset.version === "VE") return "Draft";
+  if (asset.version === "v1") return "Source";
+  return "Final";
 }

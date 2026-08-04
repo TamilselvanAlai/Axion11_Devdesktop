@@ -9,7 +9,6 @@ const STATUS_OPTIONS: { value: AssetStatus; label: string }[] = [
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
   { value: "live", label: "Live" },
-  { value: "revoked", label: "Revoked" },
 ];
 
 const TYPE_OPTIONS: AssetFileType[] = ["TIFF", "PSD", "CR3", "HEIC", "JPG", "PNG", "WEBP", "MP4", "ZIP", "OTHER"];

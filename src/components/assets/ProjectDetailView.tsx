@@ -4,6 +4,7 @@ import { AssetsToolbar } from "@/components/assets/AssetsToolbar";
 import { AssetsTable } from "@/components/assets/AssetsTable";
 import { AssetsGrid } from "@/components/assets/AssetsGrid";
 import { ProjectFolderTable } from "@/components/assets/ProjectFolderTable";
+import { FolderBulkActionBar } from "@/components/assets/FolderBulkActionBar";
 import { AssetsSkeleton } from "@/components/assets/AssetsSkeleton";
 import { BulkActionBar } from "@/components/assets/BulkActionBar";
 import { ErrorState } from "@/components/common/ErrorState";
@@ -91,6 +92,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
           ) : (
             <ProjectFolderTable folders={folderSummary} />
           )}
+          <FolderBulkActionBar folders={folderSummary} />
         </>
       ) : (
         <>
