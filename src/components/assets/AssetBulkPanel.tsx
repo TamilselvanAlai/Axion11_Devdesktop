@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
+import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { assetService } from "@/services/asset.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
 import { localSyncService } from "@/services/localSync.service";
@@ -29,6 +30,7 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
   const storeAssets = useAssetStore((s) => s.assets);
   const setAssets = useAssetStore((s) => s.setAssets);
   const refetchAssets = useAssetStore((s) => s.refetchAssets);
+  const bumpLocalSyncTick = useAssetStore((s) => s.bumpLocalSyncTick);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
@@ -68,7 +70,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
   }
 
   async function openAll() {
-    console.log("[AssetBulkPanel] openAll start", { count: assets.length, isTauri });
     setConfirmOpen(false);
     setOpening(true);
     let failed = 0;
@@ -76,7 +77,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
     // window.open on the web build), and doing them one at a time keeps per-file toasts sane
     // instead of racing, and avoids every OS "open with" window landing at the same instant.
     for (const asset of assets) {
-      console.log("[AssetBulkPanel] processing", asset.id, asset.name, { downloadUrl: asset.downloadUrl, batchId: asset.batchId });
       try {
         if (!asset.downloadUrl) throw new Error("No file available to download.");
         if (!isTauri) {
@@ -86,7 +86,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
         }
         if (!asset.batchId) throw new Error("Not linked to a batch, so it can't be synced back.");
         const relativePath = buildAssetRelativePath(projectTree, asset.batchId, asset.name);
-        console.log("[AssetBulkPanel] relativePath", relativePath);
         if (relativePath === null) throw new Error("Project data is still loading — try again in a moment.");
         await localSyncService.openAndSync({
           downloadUrl: asset.downloadUrl,
@@ -95,24 +94,23 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
           batchId: asset.batchId.replace(/^b-/, ""),
           mountRoot: mountPoint,
         });
-        console.log("[AssetBulkPanel] openAndSync resolved for", asset.id);
         assetService.recordDownload(asset.id);
         assetEditSessionService.start(asset.id).catch(() => undefined);
       } catch (err) {
-        console.error("[AssetBulkPanel] failed for", asset.id, err);
         failed++;
         toast.error(err instanceof Error ? `${asset.name}: ${err.message}` : `Failed to open ${asset.name}.`);
       }
     }
-    console.log("[AssetBulkPanel] openAll done", { failed, total: assets.length });
     setOpening(false);
+    // Lets every row's SyncStatusIcon re-check the disk once, now that these downloads landed —
+    // it only re-checks on this tick (or on asset/mount changes), so without this it'd keep
+    // showing "not synced" until something unrelated happened to bump it.
+    if (failed < assets.length) bumpLocalSyncTick();
     if (failed === 0) toast.success(`Opened ${assets.length} file${assets.length === 1 ? "" : "s"}.`);
     else if (failed < assets.length) toast.success(`Opened ${assets.length - failed} of ${assets.length} files.`);
   }
 
   function handleOpenClick() {
-    toast(`DEBUG: Open Files clicked (${assets.length} selected)`);
-    console.log("[AssetBulkPanel] Open Files clicked", { count: assets.length, opening });
     if (assets.length > CONFIRM_THRESHOLD) setConfirmOpen(true);
     else openAll();
   }
@@ -138,8 +136,13 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
 
           <div className="grid grid-cols-4 gap-1.5">
             {assets.slice(0, 16).map((a) => (
-              <div key={a.id} className="aspect-square overflow-hidden rounded-md border border-border" title={a.name}>
+              <div key={a.id} className="relative aspect-square overflow-hidden rounded-md border border-border" title={a.name}>
                 <AssetThumbnail color={a.thumbnailColor} className="size-full" rounded={false} />
+                {isTauri && (
+                  <span className="absolute bottom-0.5 right-0.5 flex items-center justify-center rounded-full bg-black/70 p-0.5">
+                    <SyncStatusIcon asset={a} className="size-2.5" />
+                  </span>
+                )}
               </div>
             ))}
           </div>

@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Undo2, Trash2, ImageOff, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Undo2, Trash2, ImageOff, ZoomIn, ZoomOut, Maximize2, Crosshair } from "lucide-react";
 import { detectShape, type Point } from "@/utils/shapeDetection";
+import { cn } from "@/lib/utils";
 
 type StrokeTool = "pen" | "circle" | "rectangle" | "triangle";
 
@@ -80,13 +81,30 @@ interface AnnotationCanvasProps {
    *  controls on both would just duplicate the same buttons twice for one shared value. Defaults
    *  to true; the compare modal sets this false on one of its two panes. */
   showZoomControls?: boolean;
+  /** Whether the click-to-zoom tool is armed — while true, double-clicking a point on the image
+   *  zooms in centered on it instead of drawing/panning. */
+  zoomToolActive?: boolean;
+  onToggleZoomTool?: () => void;
 }
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 8;
+const DOUBLE_CLICK_ZOOM_FACTOR = 2;
 
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCanvasProps>(function AnnotationCanvas(
-  { imageUrl, alt, active, lineWidth, overlayImageUrl, zoom = 1, pan = { x: 0, y: 0 }, onZoomPanChange, showZoomControls = true },
+  {
+    imageUrl,
+    alt,
+    active,
+    lineWidth,
+    overlayImageUrl,
+    zoom = 1,
+    pan = { x: 0, y: 0 },
+    onZoomPanChange,
+    showZoomControls = true,
+    zoomToolActive = false,
+    onToggleZoomTool,
+  },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -199,6 +217,15 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     }
     window.addEventListener("mousemove", handleMove);
     window.addEventListener("mouseup", handleUp);
+  }
+
+  // Zoom-tool double-click: zooms in centered on the clicked point, same math as the wheel/+
+  // button. Zooming back out again is via the existing Zoom Out/Reset buttons in the cluster.
+  function handleDoubleClick(e: React.MouseEvent) {
+    if (!zoomToolActive || active || !onZoomPanChange) return;
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    zoomAround(e.clientX - rect.left, e.clientY - rect.top, zoom * DOUBLE_CLICK_ZOOM_FACTOR);
   }
 
   useEffect(() => {
@@ -316,8 +343,9 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     <div
       ref={containerRef}
       onMouseDown={handlePanMouseDown}
+      onDoubleClick={handleDoubleClick}
       className="relative flex flex-1 items-center justify-center overflow-hidden bg-black/40 p-4"
-      style={{ cursor: canPan ? "grab" : undefined }}
+      style={{ cursor: zoomToolActive && !active ? "zoom-in" : canPan ? "grab" : undefined }}
     >
       {imageUrl ? (
         <>
@@ -394,6 +422,21 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
           )}
           {onZoomPanChange && showZoomControls && (
             <div className="absolute bottom-3 left-3 flex items-center gap-0.5 rounded-full bg-black/60 p-1 text-xs font-medium text-white">
+              {onToggleZoomTool && (
+                <button
+                  type="button"
+                  onClick={onToggleZoomTool}
+                  aria-label="Click to zoom"
+                  title="Click to zoom — double-click a spot on the image to zoom in on it"
+                  className={cn(
+                    "flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20",
+                    zoomToolActive && "bg-primary/40 text-primary-foreground"
+                  )}
+                >
+                  <Crosshair className="size-3" />
+                </button>
+              )}
+              {onToggleZoomTool && <div className="h-4 w-px bg-white/20" />}
               <button
                 type="button"
                 onClick={handleZoomOutButton}

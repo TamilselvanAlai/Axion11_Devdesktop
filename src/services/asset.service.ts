@@ -14,6 +14,7 @@ import type {
   ProjectSummary,
   ProjectTreeApiNode,
 } from "@/types";
+import { isAxiosError } from "axios";
 import { apiClient } from "@/services/api.service";
 import { getInitials } from "@/utils/formatters";
 
@@ -39,7 +40,34 @@ function mimeToFileType(mime: string | null, fileName?: string | null): AssetFil
     case "psd":          return "PSD";
     case "tif":
     case "tiff":         return "TIFF";
+    case "cr2":          return "CR2";
     case "cr3":          return "CR3";
+    case "crw":          return "CRW";
+    case "arw":          return "ARW";
+    case "srf":          return "SRF";
+    case "sr2":          return "SR2";
+    case "dng":          return "DNG";
+    case "raf":          return "RAF";
+    case "3fr":          return "3FR";
+    case "fff":          return "FFF";
+    case "nef":          return "NEF";
+    case "nrw":          return "NRW";
+    case "orf":          return "ORF";
+    case "rw2":          return "RW2";
+    case "rwl":          return "RWL";
+    case "pef":          return "PEF";
+    case "ptx":          return "PTX";
+    case "srw":          return "SRW";
+    case "x3f":          return "X3F";
+    case "iiq":          return "IIQ";
+    case "mef":          return "MEF";
+    case "mos":          return "MOS";
+    case "erf":          return "ERF";
+    case "kdc":          return "KDC";
+    case "dcr":          return "DCR";
+    case "mrw":          return "MRW";
+    case "gpr":          return "GPR";
+    case "raw":          return "RAW";
     case "heic":
     case "heif":         return "HEIC";
     case "jpg":
@@ -155,17 +183,21 @@ function toProjectNode(node: ProjectTreeApiNode): ProjectNode {
 
 /** Uploads one file via a GCS signed URL (PUT straight to storage, bypassing the backend), then
  *  tells the backend about it via the small JSON /uploads/confirm call. Falls back to a direct
- *  multipart POST through the backend if signed-URL generation isn't available (e.g. local dev
- *  without GCS service-account credentials) — same fallback the web app's uploader already uses. */
+ *  multipart POST through the backend only if signed-URL generation or the GCS PUT itself fails
+ *  (e.g. local dev without GCS service-account credentials) — that fallback is capped by Cloud
+ *  Run's request-size limit, so it must never be the reaction to a /confirm hiccup after the
+ *  file's bytes are already sitting safely in GCS; that's retried instead (see below). */
 async function uploadOneFile(file: File, target: { batchId?: string; projectId?: string }): Promise<void> {
   const contentType = file.type || "application/octet-stream";
 
-  try {
-    const { data: signed } = await apiClient.post<{ signedUrl?: string; gcsFileName?: string }>(
-      "/uploads/signed-url",
-      { fileName: file.name, contentType }
-    );
-    if (signed.signedUrl && signed.gcsFileName) {
+  const uploaded = await (async (): Promise<{ gcsFileName: string } | null> => {
+    try {
+      const { data: signed } = await apiClient.post<{ signedUrl?: string; gcsFileName?: string }>(
+        "/uploads/signed-url",
+        { fileName: file.name, contentType }
+      );
+      if (!signed.signedUrl || !signed.gcsFileName) return null;
+
       const putResponse = await fetch(signed.signedUrl, {
         method: "PUT",
         headers: { "Content-Type": contentType },
@@ -174,25 +206,48 @@ async function uploadOneFile(file: File, target: { batchId?: string; projectId?:
       if (!putResponse.ok) {
         throw new Error(`Upload to storage failed with status ${putResponse.status}`);
       }
-      // The confirm call itself is small JSON, but the backend row-creation it waits on can
-      // occasionally take a little longer than the default timeout under load — give it the
-      // same kind of headroom as the multipart fallback calls below rather than the 10s default.
-      await apiClient.post(
-        "/uploads/confirm",
-        {
-          gcsFileName: signed.gcsFileName,
-          originalFileName: file.name,
-          contentType,
-          fileSize: file.size,
-          projectId: target.projectId ? Number(target.projectId) : undefined,
-          batchId: target.batchId ? Number(target.batchId) : undefined,
-        },
-        { timeout: 60000 }
-      );
-      return;
+      return { gcsFileName: signed.gcsFileName };
+    } catch (err) {
+      // A 400 here is the backend explicitly rejecting the file (e.g. unsupported type) — not
+      // a "signed-URL flow unavailable" failure, so it must not fall back to the multipart
+      // endpoint below: that would silently re-attempt (and for a batch upload, asynchronously
+      // re-reject with no client-visible failure) a file the backend already refused.
+      if (isAxiosError(err) && err.response?.status === 400) {
+        throw new Error(typeof err.response.data === "string" ? err.response.data : "File rejected by server");
+      }
+      console.warn(`Signed-URL upload failed for "${file.name}", falling back to direct upload:`, err);
+      return null;
     }
-  } catch (err) {
-    console.warn(`Signed-URL upload failed for "${file.name}", falling back to direct upload:`, err);
+  })();
+
+  if (uploaded) {
+    const confirmBody = {
+      gcsFileName: uploaded.gcsFileName,
+      originalFileName: file.name,
+      contentType,
+      fileSize: file.size,
+      projectId: target.projectId ? Number(target.projectId) : undefined,
+      batchId: target.batchId ? Number(target.batchId) : undefined,
+    };
+    // The confirm call itself is small JSON, but the backend row-creation it waits on can
+    // occasionally take a little longer than the default timeout under load, or hit a transient
+    // failure. Retry it a few times rather than falling through to the multipart path below —
+    // the file's bytes are already in GCS at this point, so re-uploading the whole thing again
+    // through a size-capped endpoint would be both wasteful and exactly what breaks on anything
+    // larger than Cloud Run's request limit.
+    const CONFIRM_ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt++) {
+      try {
+        await apiClient.post("/uploads/confirm", confirmBody, { timeout: 60000 });
+        return;
+      } catch (err) {
+        if (attempt === CONFIRM_ATTEMPTS) {
+          console.warn(`Confirming "${file.name}" failed after ${CONFIRM_ATTEMPTS} attempts:`, err);
+          throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+      }
+    }
   }
 
   const formData = new FormData();

@@ -471,7 +471,11 @@ fn is_recognized_asset_extension(path: &Path) -> bool {
         .to_lowercase();
     matches!(
         ext.as_str(),
-        "jpg" | "jpeg" | "png" | "webp" | "tif" | "tiff" | "psd" | "cr3" | "mp4" | "mov"
+        "jpg" | "jpeg" | "png" | "webp" | "tif" | "tiff" | "psd" | "mp4" | "mov"
+            // raw — kept in sync with the backend's ImageUploadService.NEEDS_PREVIEW_EXTS
+            | "cr2" | "cr3" | "crw" | "nef" | "nrw" | "arw" | "srf" | "sr2" | "dng" | "raf"
+            | "raw" | "rw2" | "rwl" | "orf" | "pef" | "ptx" | "srw" | "x3f" | "3fr" | "fff"
+            | "iiq" | "mef" | "mos" | "erf" | "kdc" | "dcr" | "mrw" | "gpr"
     )
 }
 

@@ -1,6 +1,43 @@
 export type AssetStatus = "draft" | "approved" | "rejected" | "live";
 
-export type AssetFileType = "TIFF" | "PSD" | "CR3" | "HEIC" | "JPG" | "PNG" | "WEBP" | "MP4" | "ZIP" | "OTHER";
+export type AssetFileType =
+  | "TIFF"
+  | "PSD"
+  | "CR2"
+  | "CR3"
+  | "CRW"
+  | "ARW"
+  | "SRF"
+  | "SR2"
+  | "DNG"
+  | "RAF"
+  | "3FR"
+  | "FFF"
+  | "NEF"
+  | "NRW"
+  | "ORF"
+  | "RW2"
+  | "RWL"
+  | "PEF"
+  | "PTX"
+  | "SRW"
+  | "X3F"
+  | "IIQ"
+  | "MEF"
+  | "MOS"
+  | "ERF"
+  | "KDC"
+  | "DCR"
+  | "MRW"
+  | "GPR"
+  | "RAW"
+  | "HEIC"
+  | "JPG"
+  | "PNG"
+  | "WEBP"
+  | "MP4"
+  | "ZIP"
+  | "OTHER";
 
 export interface AssetAssignee {
   name: string;

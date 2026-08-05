@@ -20,8 +20,11 @@ export function FolderBulkActionBar({ folders }: { folders: ProjectSummary[] }) 
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-5 z-40 flex justify-center">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg ring-1 ring-foreground/10">
+      {/* pointer-events-none on the full-width centering wrapper, -auto back on the pill itself —
+          otherwise this invisible edge-to-edge strip silently blocks clicks on anything else
+          sitting at the same height (e.g. the right panel's own bottom action buttons). */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center">
+        <div className="pointer-events-auto flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-lg ring-1 ring-foreground/10">
           <span className="whitespace-nowrap text-sm font-medium text-primary">
             {selectedIds.length} selected
           </span>

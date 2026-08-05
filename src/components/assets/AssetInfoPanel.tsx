@@ -39,6 +39,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const projectTree = useAssetStore((s) => s.projectTree);
   const selectAsset = useAssetStore((s) => s.selectAsset);
   const assetsRefreshTick = useAssetStore((s) => s.assetsRefreshTick);
+  const bumpLocalSyncTick = useAssetStore((s) => s.bumpLocalSyncTick);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
@@ -150,12 +151,36 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       setLocalInfo(result);
       assetService.recordDownload(detail.id);
       assetEditSessionService.start(detail.id).catch(() => undefined);
+      bumpLocalSyncTick();
       toast.success("Opened — saving the file will sync a new version automatically.");
+      // Silently warms the rest of this batch in the background so opening the next image from
+      // it feels instant — only this one asset actually opens/launches an app.
+      prefetchBatchSiblings(detail.batchId, detail.id);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to open file.");
     } finally {
       setOpening(false);
     }
+  }
+
+  // Best-effort: downloads (never opens) every other asset in the same batch, skipping ones
+  // already cached locally (download_asset_to_mount reuses an existing file rather than
+  // re-fetching it). Silent — a sibling failing to prefetch shouldn't surface as an error for
+  // an action the user didn't directly ask for; opening it later just falls back to downloading
+  // on demand like today.
+  async function prefetchBatchSiblings(batchId: string, openedAssetId: string) {
+    if (!isTauri) return;
+    const siblings = await assetService.listAssets({ projectId: batchId }).catch(() => []);
+    const toPrefetch = siblings.filter((a) => a.id !== openedAssetId && a.downloadUrl && a.batchId);
+    if (toPrefetch.length === 0) return;
+    await Promise.allSettled(
+      toPrefetch.map((a) => {
+        const relativePath = buildAssetRelativePath(projectTree, a.batchId!, a.name);
+        if (relativePath === null) return Promise.resolve();
+        return localSyncService.downloadToMount(a.downloadUrl!, relativePath, mountPoint);
+      })
+    );
+    bumpLocalSyncTick();
   }
 
   function handlePreview() {

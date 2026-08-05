@@ -15,10 +15,41 @@ import { filterAssets } from "@/utils/assetFilters";
 import { useScrollToSelectedAsset } from "@/hooks/useScrollToSelectedAsset";
 import type { Asset, AssetFileType } from "@/types";
 
+// Every RAW camera format (Canon, Sony, Adobe DNG, Fujifilm, Hasselblad, Nikon, Olympus,
+// Panasonic, and generic .raw) shares one color family — see FileTypeBadge for the same choice.
+const RAW_BADGE_CLASS = "bg-orange-500/15 text-orange-400";
+
 const TYPE_BADGE_CLASS: Record<AssetFileType, string> = {
   TIFF: "bg-blue-500/15 text-blue-400",
   PSD: "bg-amber-500/15 text-amber-400",
-  CR3: "bg-emerald-500/15 text-emerald-400",
+  CR2: RAW_BADGE_CLASS,
+  CR3: RAW_BADGE_CLASS,
+  CRW: RAW_BADGE_CLASS,
+  ARW: RAW_BADGE_CLASS,
+  SRF: RAW_BADGE_CLASS,
+  SR2: RAW_BADGE_CLASS,
+  DNG: RAW_BADGE_CLASS,
+  RAF: RAW_BADGE_CLASS,
+  "3FR": RAW_BADGE_CLASS,
+  FFF: RAW_BADGE_CLASS,
+  NEF: RAW_BADGE_CLASS,
+  NRW: RAW_BADGE_CLASS,
+  ORF: RAW_BADGE_CLASS,
+  RW2: RAW_BADGE_CLASS,
+  RWL: RAW_BADGE_CLASS,
+  PEF: RAW_BADGE_CLASS,
+  PTX: RAW_BADGE_CLASS,
+  SRW: RAW_BADGE_CLASS,
+  X3F: RAW_BADGE_CLASS,
+  IIQ: RAW_BADGE_CLASS,
+  MEF: RAW_BADGE_CLASS,
+  MOS: RAW_BADGE_CLASS,
+  ERF: RAW_BADGE_CLASS,
+  KDC: RAW_BADGE_CLASS,
+  DCR: RAW_BADGE_CLASS,
+  MRW: RAW_BADGE_CLASS,
+  GPR: RAW_BADGE_CLASS,
+  RAW: RAW_BADGE_CLASS,
   HEIC: "bg-emerald-500/15 text-emerald-400",
   JPG: "bg-violet-500/15 text-violet-400",
   PNG: "bg-violet-500/15 text-violet-400",

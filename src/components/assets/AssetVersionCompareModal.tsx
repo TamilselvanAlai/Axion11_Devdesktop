@@ -145,6 +145,7 @@ export function AssetVersionCompareModal({
   const [rightId, setRightId] = useState<string>(assetId);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "revoke" | null>(null);
   const [drawingActive, setDrawingActive] = useState(false);
+  const [zoomToolActive, setZoomToolActive] = useState(false);
   const [drawingWidth, setDrawingWidth] = useState(4);
   const [compareLayout, setCompareLayout] = useState<CompareLayout>(initialLayout ?? "side-by-side");
   const [sliderPosition, setSliderPosition] = useState(50);
@@ -161,10 +162,13 @@ export function AssetVersionCompareModal({
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
 
-  // Drawing only applies to the side-by-side panes — slider mode composites a single clipped
-  // image, so there's no per-image canvas to draw on there.
+  // Drawing (and the click-to-zoom tool) only apply to the side-by-side panes — slider mode
+  // composites a single clipped image, so there's no per-image canvas to draw/zoom on there.
   useEffect(() => {
-    if (compareLayout === "slider") setDrawingActive(false);
+    if (compareLayout === "slider") {
+      setDrawingActive(false);
+      setZoomToolActive(false);
+    }
   }, [compareLayout]);
 
   // Zoom/pan is meaningless once the visual model changes (e.g. slider mode has no
@@ -314,7 +318,7 @@ export function AssetVersionCompareModal({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setDrawingActive((a) => !a)}
+            onClick={() => { setDrawingActive((a) => !a); setZoomToolActive(false); }}
             disabled={compareLayout === "slider"}
             aria-label="Draw (auto-shapes)"
             title={compareLayout === "slider" ? "Switch to side-by-side to draw" : "Draw (auto-shapes)"}
@@ -371,6 +375,8 @@ export function AssetVersionCompareModal({
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
+                zoomToolActive={zoomToolActive}
+                onToggleZoomTool={() => { setDrawingActive(false); setZoomToolActive((a) => !a); }}
               />
               {(onPrev || onNext) && (
                 <>
@@ -405,6 +411,8 @@ export function AssetVersionCompareModal({
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
+                zoomToolActive={zoomToolActive}
+                onToggleZoomTool={() => { setDrawingActive(false); setZoomToolActive((a) => !a); }}
               />
               <div className="w-px shrink-0 bg-white/10" />
               <AnnotationCanvas
@@ -418,6 +426,7 @@ export function AssetVersionCompareModal({
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
                 showZoomControls={false}
+                zoomToolActive={zoomToolActive}
               />
             </div>
           ) : (
