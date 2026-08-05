@@ -25,7 +25,7 @@ import { isUrl } from "@/utils/helpers";
 import { assetService } from "@/services/asset.service";
 import { useUser } from "@/hooks/useUser";
 import { cn } from "@/lib/utils";
-import type { Asset } from "@/types";
+import type { Asset, AssetStatus } from "@/types";
 
 type CompareLayout = "individual" | "side-by-side" | "slider";
 
@@ -269,15 +269,22 @@ export function AssetVersionCompareModal({
   async function handleDecision(decision: "approve" | "reject" | "revoke") {
     if (!right) return;
     setDeciding(decision);
+    // Reflect the new status on screen right away instead of waiting on a network round trip —
+    // the write below still happens, but the UI doesn't sit on the old status until it resolves.
+    const newStatus: AssetStatus = decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "draft";
+    const previousVersions = versions;
+    setVersions((vs) => vs?.map((v) => (v.id === right.id ? { ...v, status: newStatus } : v)) ?? vs);
     try {
       if (decision === "approve") await assetService.approveAsset(right.id);
       else if (decision === "reject") await assetService.rejectAsset(right.id);
       else await assetService.revokeApproval(right.id);
       toast.success(decision === "approve" ? "Asset approved." : decision === "reject" ? "Asset rejected." : "Approval revoked.");
-      const refreshed = await assetService.getVersions(assetId);
-      setVersions(refreshed);
       onStatusChange?.();
+      // Reconcile with the server in the background — doesn't block the UI, which already shows
+      // the right status.
+      assetService.getVersions(assetId).then(setVersions);
     } catch {
+      setVersions(previousVersions);
       toast.error(`Failed to ${decision} asset.`);
     } finally {
       setDeciding(null);
@@ -577,7 +584,7 @@ export function AssetVersionCompareModal({
                     className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deciding === "revoke" ? <Loader2 className="size-3 animate-spin" /> : <Undo2 className="size-3" />}
-                    Revoke Approval
+                    Revoke
                   </button>
                 ) : (
                   <button

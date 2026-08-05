@@ -9,7 +9,9 @@ import { assetsRouter } from "./routes/assets.routes.js";
 const app = express();
 const port = Number(process.env.PORT ?? 4000);
 
-app.use(cors({ origin: process.env.CORS_ORIGIN ?? "http://localhost:1420" }));
+const defaultOrigins = ["http://localhost:1420", "http://localhost:3000", "http://localhost:3001", "http://localhost:5173"];
+const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()) : defaultOrigins;
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => res.json({ ok: true }));

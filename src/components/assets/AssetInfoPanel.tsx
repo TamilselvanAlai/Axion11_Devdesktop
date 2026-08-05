@@ -14,7 +14,7 @@ import { isUrl } from "@/utils/helpers";
 import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import { getStatusMeta } from "@/utils/assetStatus";
-import type { Asset, AssetDetail } from "@/types";
+import type { Asset, AssetDetail, AssetStatus } from "@/types";
 
 // No explicit locale (undefined) — uses the viewer's own system/browser locale rather than
 // hardcoding "en-US", so date/time formatting actually matches "locale base" as requested.
@@ -31,7 +31,11 @@ function formatDateTime(iso: string) {
 }
 
 export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail; onStatusChange?: () => void }) {
-  const status = getStatusMeta(detail.status, detail.established);
+  // Set immediately on approve/reject/revoke so the badge and buttons flip without waiting on
+  // the refetch that follows the write — cleared once `detail` catches up to it (see effect below).
+  const [statusOverride, setStatusOverride] = useState<AssetStatus | null>(null);
+  const effectiveStatus = statusOverride ?? detail.status;
+  const status = getStatusMeta(effectiveStatus, detail.established);
   const projectTree = useAssetStore((s) => s.projectTree);
   const selectAsset = useAssetStore((s) => s.selectAsset);
   const assetsRefreshTick = useAssetStore((s) => s.assetsRefreshTick);
@@ -47,6 +51,11 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const [productionSeconds, setProductionSeconds] = useState<number | null>(null);
   const isTauri = localSyncService.isTauri();
   const previewableUrl = isUrl(detail.thumbnailColor) ? detail.thumbnailColor : null;
+
+  useEffect(() => {
+    if (statusOverride !== null && detail.status === statusOverride) setStatusOverride(null);
+  }, [detail.status, statusOverride]);
+
   // Once a local copy exists, opening it again just reopens the same file in the OS default
   // app (no re-download) — surfaced as "Retouch" so it's clear no fresh download is happening.
   const isRetouch = isTauri && localInfo !== null;
@@ -159,6 +168,11 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
 
   async function handleDecision(decision: "approve" | "reject" | "revoke") {
     setDeciding(decision);
+    // Flip the badge/buttons right away — the API call and refetches below still run, but the
+    // UI doesn't wait on that extra round trip to show the new status.
+    const newStatus: AssetStatus = decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "draft";
+    setStatusOverride(newStatus);
+    setVersions((vs) => vs?.map((v) => (v.id === detail.id ? { ...v, status: newStatus } : v)) ?? vs);
     try {
       if (decision === "approve") await assetService.approveAsset(detail.id);
       else if (decision === "reject") await assetService.rejectAsset(detail.id);
@@ -167,6 +181,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       assetService.getVersions(detail.id).then(setVersions);
       onStatusChange?.();
     } catch {
+      setStatusOverride(null);
       toast.error(`Failed to ${decision} asset.`);
     } finally {
       setDeciding(null);
@@ -199,12 +214,12 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
             </span>
             <span className="rounded-md bg-white/5 px-2 py-1 font-mono text-xs text-foreground/70">{detail.version}</span>
             {detail.established && detail.version !== "VE" && <EstablishedBadge />}
-            {detail.status !== "rejected" && (
+            {effectiveStatus !== "rejected" && (
               <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-muted-foreground">
                 <CheckCircle className="size-2.5 text-success" /> Checksum OK
               </span>
             )}
-            {detail.status !== "rejected" && (
+            {effectiveStatus !== "rejected" && (
               <span className="flex items-center gap-1 rounded-md bg-white/5 px-2 py-1 text-xs text-muted-foreground">
                 {detail.locked ? <Lock className="size-2.5" /> : <Unlock className="size-2.5" />} {detail.locked ? "Locked" : "Unlocked"}
               </span>
@@ -291,7 +306,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       {isQc && (
         <div className="shrink-0 border-t border-border p-4">
           <div className="grid grid-cols-2 gap-2">
-            {detail.status === "approved" ? (
+            {effectiveStatus === "approved" ? (
               <button
                 onClick={() => handleDecision("revoke")}
                 disabled={deciding !== null}
@@ -299,12 +314,12 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
                 className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deciding === "revoke" ? <Loader2 className="size-3 animate-spin" /> : <Undo2 className="size-3" />}
-                Revoke Approval
+                Revoke
               </button>
             ) : (
               <button
                 onClick={() => handleDecision("approve")}
-                disabled={deciding !== null || detail.status === "live"}
+                disabled={deciding !== null || effectiveStatus === "live"}
                 className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white shadow-md shadow-success/20 transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
@@ -313,7 +328,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
             )}
             <button
               onClick={() => handleDecision("reject")}
-              disabled={deciding !== null || detail.status === "rejected" || detail.status === "live"}
+              disabled={deciding !== null || effectiveStatus === "rejected" || effectiveStatus === "live"}
               className="flex items-center justify-center gap-1.5 rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white shadow-md shadow-danger/20 transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {deciding === "reject" ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}

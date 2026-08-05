@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { FileText, MessageSquare, Clock, ChevronLeft, ChevronRight } from "lucide-react";
 import { ActivityList } from "@/components/dashboard/ActivityList";
 import { AssetInfoPanel } from "@/components/assets/AssetInfoPanel";
+import { AssetBulkPanel } from "@/components/assets/AssetBulkPanel";
 import { AssetCommentsPanel } from "@/components/assets/AssetCommentsPanel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboard } from "@/hooks/useDashboard";
@@ -20,7 +21,16 @@ export function RightPanel() {
   const { snapshot } = useDashboard();
   const selectedAssetId = useAssetStore((state) => state.selectedAssetId);
   const refetchAssets = useAssetStore((state) => state.refetchAssets);
-  const { detail, refetch } = useAssetDetail(selectedAssetId);
+  const multiSelectedIds = useAssetStore((state) => state.multiSelectedIds);
+  const assets = useAssetStore((state) => state.assets);
+  const clearMultiSelect = useAssetStore((state) => state.clearMultiSelect);
+  const multiSelectedAssets = assets.filter((a) => multiSelectedIds.has(a.id));
+  // Checking exactly one checkbox is still "viewing a single asset" — it should drive the info
+  // panel the same as clicking its row, not fall through to the empty state. Only 2+ checked
+  // switches to the bulk summary below. Checkbox selection wins over a stale row click since
+  // it's the more recent/explicit signal of what the user means to look at.
+  const effectiveAssetId = multiSelectedIds.size === 1 ? [...multiSelectedIds][0] : selectedAssetId;
+  const { detail, refetch } = useAssetDetail(effectiveAssetId);
 
   function handleStatusChange() {
     refetch();
@@ -28,10 +38,15 @@ export function RightPanel() {
   }
 
   // Selecting a new asset should surface its own details, not whatever tab was
-  // left open (e.g. History/Comments) from a previously selected asset.
+  // left open (e.g. History/Comments) from a previously selected asset. Starting a multi-select
+  // does the same, so the bulk view (only rendered under the Info tab) actually shows up.
   useEffect(() => {
-    if (selectedAssetId) setTab("info");
-  }, [selectedAssetId]);
+    if (effectiveAssetId) setTab("info");
+  }, [effectiveAssetId]);
+
+  useEffect(() => {
+    if (multiSelectedIds.size > 1) setTab("info");
+  }, [multiSelectedIds.size > 1]);
 
   return (
     <aside
@@ -70,7 +85,9 @@ export function RightPanel() {
           </div>
 
           <div className={`min-h-0 flex-1 ${tab === "history" ? "overflow-y-auto" : "overflow-hidden"}`}>
-            {!selectedAssetId && tab !== "history" ? (
+            {multiSelectedIds.size > 1 && tab === "info" ? (
+              <AssetBulkPanel assets={multiSelectedAssets} onClear={clearMultiSelect} />
+            ) : !effectiveAssetId && tab !== "history" ? (
               <div className="flex h-full flex-col items-center justify-center p-6 text-center">
                 <div className="mb-3 flex size-12 items-center justify-center rounded-xl border border-border bg-white/5">
                   <FileText className="size-4 text-muted-foreground" />
@@ -92,7 +109,7 @@ export function RightPanel() {
                 <AssetInfoPanel key={detail.id} detail={detail} onStatusChange={handleStatusChange} />
               )
             ) : tab === "comments" ? (
-              <AssetCommentsPanel assetId={selectedAssetId!} />
+              <AssetCommentsPanel assetId={effectiveAssetId!} />
             ) : (
               <ActivityList items={snapshot?.activity ?? null} />
             )}
