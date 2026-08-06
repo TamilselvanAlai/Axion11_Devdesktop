@@ -378,7 +378,7 @@ export function AssetVersionCompareModal({
                 zoomToolActive={zoomToolActive}
                 onToggleZoomTool={() => { setDrawingActive(false); setZoomToolActive((a) => !a); }}
               />
-              {(onPrev || onNext) && (
+              {(onPrev || onNext) && zoom <= 1 && (
                 <>
                   <button
                     type="button"

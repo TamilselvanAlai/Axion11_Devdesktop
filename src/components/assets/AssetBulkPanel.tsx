@@ -1,16 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, FolderOpen, Loader2, Undo2, X } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { assetService } from "@/services/asset.service";
@@ -21,21 +11,17 @@ import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import type { Asset, AssetStatus } from "@/types";
 
-// Above this many, opening means that many native "open with" windows landing on screen at
-// once — worth a confirmation instead of firing blind.
-const CONFIRM_THRESHOLD = 5;
-
 export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: () => void }) {
   const projectTree = useAssetStore((s) => s.projectTree);
   const storeAssets = useAssetStore((s) => s.assets);
   const setAssets = useAssetStore((s) => s.setAssets);
   const refetchAssets = useAssetStore((s) => s.refetchAssets);
-  const bumpLocalSyncTick = useAssetStore((s) => s.bumpLocalSyncTick);
+  const markAssetSyncing = useAssetStore((s) => s.markAssetSyncing);
+  const markAssetSynced = useAssetStore((s) => s.markAssetSynced);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "revoke" | null>(null);
   const isTauri = localSyncService.isTauri();
   const allApproved = assets.length > 0 && assets.every((a) => a.status === "approved");
@@ -70,7 +56,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
   }
 
   async function openAll() {
-    setConfirmOpen(false);
     setOpening(true);
     let failed = 0;
     // Sequential, not parallel — mirrors AssetDownloadDialog: each one is a real file write (or
@@ -87,13 +72,18 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
         if (!asset.batchId) throw new Error("Not linked to a batch, so it can't be synced back.");
         const relativePath = buildAssetRelativePath(projectTree, asset.batchId, asset.name);
         if (relativePath === null) throw new Error("Project data is still loading — try again in a moment.");
-        await localSyncService.openAndSync({
-          downloadUrl: asset.downloadUrl,
-          relativePath,
-          assetId: asset.id,
-          batchId: asset.batchId.replace(/^b-/, ""),
-          mountRoot: mountPoint,
-        });
+        markAssetSyncing(asset.id);
+        try {
+          await localSyncService.openAndSync({
+            downloadUrl: asset.downloadUrl,
+            relativePath,
+            assetId: asset.id,
+            batchId: asset.batchId.replace(/^b-/, ""),
+            mountRoot: mountPoint,
+          });
+        } finally {
+          markAssetSynced(asset.id);
+        }
         assetService.recordDownload(asset.id);
         assetEditSessionService.start(asset.id).catch(() => undefined);
       } catch (err) {
@@ -102,17 +92,8 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
       }
     }
     setOpening(false);
-    // Lets every row's SyncStatusIcon re-check the disk once, now that these downloads landed —
-    // it only re-checks on this tick (or on asset/mount changes), so without this it'd keep
-    // showing "not synced" until something unrelated happened to bump it.
-    if (failed < assets.length) bumpLocalSyncTick();
     if (failed === 0) toast.success(`Opened ${assets.length} file${assets.length === 1 ? "" : "s"}.`);
     else if (failed < assets.length) toast.success(`Opened ${assets.length - failed} of ${assets.length} files.`);
-  }
-
-  function handleOpenClick() {
-    if (assets.length > CONFIRM_THRESHOLD) setConfirmOpen(true);
-    else openAll();
   }
 
   return (
@@ -194,7 +175,7 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
       <div className="shrink-0 border-t border-border p-4">
         <button
           type="button"
-          onClick={handleOpenClick}
+          onClick={openAll}
           disabled={opening || assets.length === 0}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -202,24 +183,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
           {opening ? "Opening…" : `Open Files (${assets.length})`}
         </button>
       </div>
-
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Open {assets.length} files?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Each file downloads locally and opens in its default app — that's {assets.length} app windows opening
-              at once.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={opening}>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={opening} onClick={openAll}>
-              Open All
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

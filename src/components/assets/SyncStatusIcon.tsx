@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { CloudCheck, Cloud } from "lucide-react";
+import { CloudCheck, Cloud, CloudDownload } from "lucide-react";
 import { localSyncService } from "@/services/localSync.service";
 import { buildAssetRelativePath } from "@/utils/assetPath";
 import { useAssetStore, useMountSettingsStore } from "@/store";
@@ -11,6 +11,7 @@ import type { Asset } from "@/types";
 export function SyncStatusIcon({ asset, className }: { asset: Asset; className?: string }) {
   const projectTree = useAssetStore((s) => s.projectTree);
   const localSyncTick = useAssetStore((s) => s.localSyncTick);
+  const isSyncing = useAssetStore((s) => s.syncingAssetIds.has(asset.id));
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const [synced, setSynced] = useState<boolean | null>(null);
 
@@ -34,6 +35,18 @@ export function SyncStatusIcon({ asset, className }: { asset: Asset; className?:
       cancelled = true;
     };
   }, [asset.id, asset.batchId, asset.name, projectTree, mountPoint, localSyncTick]);
+
+  // Shown the instant a background download starts (see markAssetSyncing) rather than waiting
+  // on a disk check — the disk-backed synced/not-synced state below only needs to resolve once
+  // the download actually finishes, at which point markAssetSynced both clears this and bumps
+  // localSyncTick to trigger that recheck.
+  if (isSyncing) {
+    return (
+      <span title="Syncing…" className="inline-flex shrink-0">
+        <CloudDownload className={cn("animate-pulse text-primary", className)} />
+      </span>
+    );
+  }
 
   if (synced === null) return null;
 

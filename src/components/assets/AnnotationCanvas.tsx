@@ -89,7 +89,7 @@ interface AnnotationCanvasProps {
 
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 8;
-const DOUBLE_CLICK_ZOOM_FACTOR = 2;
+const CLICK_ZOOM_FACTOR = 2;
 
 export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCanvasProps>(function AnnotationCanvas(
   {
@@ -110,6 +110,10 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // True once a mousedown→mousemove sequence has moved more than a few px — lets the zoom
+  // tool's click handler tell "clicked to zoom" apart from "dragged to pan" (both start with
+  // the same mousedown on this container).
+  const draggedRef = useRef(false);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const [box, setBox] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const [strokes, setStrokes] = useState<Stroke[]>([]);
@@ -205,10 +209,15 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
   function handlePanMouseDown(e: React.MouseEvent) {
     if (active || zoom <= MIN_ZOOM || !onZoomPanChange) return;
     e.preventDefault();
+    draggedRef.current = false;
     const startX = e.clientX;
     const startY = e.clientY;
     const startPan = pan;
     function handleMove(moveEvent: MouseEvent) {
+      // A few px of jitter shouldn't cancel the zoom-tool's click — only a real drag should.
+      if (Math.abs(moveEvent.clientX - startX) > 3 || Math.abs(moveEvent.clientY - startY) > 3) {
+        draggedRef.current = true;
+      }
       onZoomPanChange!(zoom, { x: startPan.x + (moveEvent.clientX - startX), y: startPan.y + (moveEvent.clientY - startY) });
     }
     function handleUp() {
@@ -219,13 +228,14 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     window.addEventListener("mouseup", handleUp);
   }
 
-  // Zoom-tool double-click: zooms in centered on the clicked point, same math as the wheel/+
-  // button. Zooming back out again is via the existing Zoom Out/Reset buttons in the cluster.
-  function handleDoubleClick(e: React.MouseEvent) {
-    if (!zoomToolActive || active || !onZoomPanChange) return;
+  // Zoom-tool click: zooms in centered on the clicked point, same math as the wheel/+ button.
+  // Ignored if that click was actually a pan drag (see draggedRef above). Zooming back out again
+  // is via the existing Zoom Out/Reset buttons in the cluster.
+  function handleZoomClick(e: React.MouseEvent) {
+    if (!zoomToolActive || active || !onZoomPanChange || draggedRef.current) return;
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    zoomAround(e.clientX - rect.left, e.clientY - rect.top, zoom * DOUBLE_CLICK_ZOOM_FACTOR);
+    zoomAround(e.clientX - rect.left, e.clientY - rect.top, zoom * CLICK_ZOOM_FACTOR);
   }
 
   useEffect(() => {
@@ -343,7 +353,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     <div
       ref={containerRef}
       onMouseDown={handlePanMouseDown}
-      onDoubleClick={handleDoubleClick}
+      onClick={handleZoomClick}
       className="relative flex flex-1 items-center justify-center overflow-hidden bg-black/40 p-4"
       style={{ cursor: zoomToolActive && !active ? "zoom-in" : canPan ? "grab" : undefined }}
     >
@@ -427,7 +437,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
                   type="button"
                   onClick={onToggleZoomTool}
                   aria-label="Click to zoom"
-                  title="Click to zoom — double-click a spot on the image to zoom in on it"
+                  title="Click to zoom — click a spot on the image to zoom in on it"
                   className={cn(
                     "flex size-6 items-center justify-center rounded-full transition-colors hover:bg-white/20",
                     zoomToolActive && "bg-primary/40 text-primary-foreground"

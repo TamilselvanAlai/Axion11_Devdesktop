@@ -40,6 +40,8 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const selectAsset = useAssetStore((s) => s.selectAsset);
   const assetsRefreshTick = useAssetStore((s) => s.assetsRefreshTick);
   const bumpLocalSyncTick = useAssetStore((s) => s.bumpLocalSyncTick);
+  const markAssetSyncing = useAssetStore((s) => s.markAssetSyncing);
+  const markAssetSynced = useAssetStore((s) => s.markAssetSynced);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
@@ -167,20 +169,26 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   // already cached locally (download_asset_to_mount reuses an existing file rather than
   // re-fetching it). Silent — a sibling failing to prefetch shouldn't surface as an error for
   // an action the user didn't directly ask for; opening it later just falls back to downloading
-  // on demand like today.
+  // on demand like today. Each sibling is marked syncing/synced individually (rather than one
+  // bump at the very end) so its row's cloud icon animates while its own download is actually
+  // in flight, not just at the moment the whole batch finishes.
   async function prefetchBatchSiblings(batchId: string, openedAssetId: string) {
     if (!isTauri) return;
     const siblings = await assetService.listAssets({ projectId: batchId }).catch(() => []);
     const toPrefetch = siblings.filter((a) => a.id !== openedAssetId && a.downloadUrl && a.batchId);
     if (toPrefetch.length === 0) return;
     await Promise.allSettled(
-      toPrefetch.map((a) => {
+      toPrefetch.map(async (a) => {
         const relativePath = buildAssetRelativePath(projectTree, a.batchId!, a.name);
-        if (relativePath === null) return Promise.resolve();
-        return localSyncService.downloadToMount(a.downloadUrl!, relativePath, mountPoint);
+        if (relativePath === null) return;
+        markAssetSyncing(a.id);
+        try {
+          await localSyncService.downloadToMount(a.downloadUrl!, relativePath, mountPoint);
+        } finally {
+          markAssetSynced(a.id);
+        }
       })
     );
-    bumpLocalSyncTick();
   }
 
   function handlePreview() {
