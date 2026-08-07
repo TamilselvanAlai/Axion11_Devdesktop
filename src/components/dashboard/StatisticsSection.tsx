@@ -51,7 +51,9 @@ export function StatisticsSection({
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Time Management</p>
           <p className="mt-0.5 text-xl font-semibold tracking-tight">{stats.timeManagement.value}</p>
-          <p className="text-xs text-muted-foreground">{stats.timeManagement.description}</p>
+          <p className="text-xs text-muted-foreground">
+            {stats.timeManagement.description} · {stats.timeManagement.allTimeValue} total in app
+          </p>
         </div>
       </Card>
 

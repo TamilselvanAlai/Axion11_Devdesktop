@@ -8,6 +8,9 @@ export interface TimeManagementStat {
   value: string;
   delta: string;
   description: string;
+  /** Lifetime idle-corrected active-editing total across every session ever recorded, formatted
+   *  (e.g. "142h 30m") — shown alongside today's figure, not in place of it. */
+  allTimeValue: string;
 }
 
 export interface TasksStat {

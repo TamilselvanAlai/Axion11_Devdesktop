@@ -6,7 +6,7 @@ import {
   ImageOff,
   Check,
   Loader2,
-  PenTool,
+  LineSquiggle,
   CircleDot,
   Image as ImageIcon,
   Columns2,
@@ -14,10 +14,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Undo2,
+  Redo2,
 } from "lucide-react";
 import { AssetCommentsPanel } from "@/components/assets/AssetCommentsPanel";
 import { AssetDownloadDialog } from "@/components/assets/AssetDownloadDialog";
-import { AnnotationCanvas, type AnnotationCanvasHandle } from "@/components/assets/AnnotationCanvas";
+import { AnnotationCanvas, type AnnotationCanvasHandle, type AnnotationHistoryState } from "@/components/assets/AnnotationCanvas";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { getStatusMeta } from "@/utils/assetStatus";
 import { formatRelativeTime } from "@/utils/formatters";
@@ -44,6 +45,55 @@ interface AssetVersionCompareModalProps {
 }
 
 const WIDTH_PRESETS = [2, 4, 8, 12, 16];
+const STROKE_COLORS = ["#1D7CFF", "#FF4444", "#44FF44", "#FFFF44", "#FF44FF", "#FFFFFF"];
+
+function ColorPicker({ color, onChange }: { color: string; onChange: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Line color"
+        title="Line color"
+        className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-border bg-white/5 transition-colors hover:bg-white/10"
+      >
+        <span className="size-3 rounded-full border border-white/30" style={{ backgroundColor: color }} />
+      </button>
+      {open && (
+        <div className="absolute right-0 bottom-full z-10 mb-1 flex gap-1.5 rounded-lg border border-border bg-popover p-2 shadow-xl">
+          {STROKE_COLORS.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => {
+                onChange(c);
+                setOpen(false);
+              }}
+              aria-label={`Color ${c}`}
+              className={cn(
+                "size-6 rounded-md transition-all",
+                color === c && "ring-2 ring-primary ring-offset-2 ring-offset-popover"
+              )}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function LineWidthPicker({ width, onChange }: { width: number; onChange: (w: number) => void }) {
   const [open, setOpen] = useState(false);
@@ -64,12 +114,13 @@ function LineWidthPicker({ width, onChange }: { width: number; onChange: (w: num
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Line size"
-        className="flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10"
+        title="Line width"
+        className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-border bg-white/5 transition-colors hover:bg-white/10"
       >
         <CircleDot className="size-3" style={{ transform: `scale(${0.6 + Math.min(width, 16) / 20})` }} />
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-border bg-popover p-3 shadow-xl">
+        <div className="absolute right-0 bottom-full z-10 mb-1 w-44 rounded-lg border border-border bg-popover p-3 shadow-xl">
           <input
             type="range"
             min={1}
@@ -147,6 +198,7 @@ export function AssetVersionCompareModal({
   const [drawingActive, setDrawingActive] = useState(false);
   const [zoomToolActive, setZoomToolActive] = useState(false);
   const [drawingWidth, setDrawingWidth] = useState(4);
+  const [drawingColor, setDrawingColor] = useState(STROKE_COLORS[1]);
   const [compareLayout, setCompareLayout] = useState<CompareLayout>(initialLayout ?? "side-by-side");
   const [sliderPosition, setSliderPosition] = useState(50);
   // Shared across both panes in side-by-side mode (same state passed to both AnnotationCanvas
@@ -154,6 +206,10 @@ export function AssetVersionCompareModal({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [activeAnnotationUrl, setActiveAnnotationUrl] = useState<string | null>(null);
+  // Mirrors the right/primary canvas's undo/redo/erase-availability so the toolbar below the
+  // comments panel (not the canvas itself) can render those buttons' enabled state — see
+  // AnnotationCanvas's onHistoryChange for why this can't just be read imperatively off the ref.
+  const [drawState, setDrawState] = useState<AnnotationHistoryState>({ canUndo: false, canRedo: false });
   const [sliderImgBox, setSliderImgBox] = useState({ left: 0, top: 0, width: 0, height: 0 });
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const rightCanvasRef = useRef<AnnotationCanvasHandle>(null);
@@ -318,22 +374,6 @@ export function AssetVersionCompareModal({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => { setDrawingActive((a) => !a); setZoomToolActive(false); }}
-            disabled={compareLayout === "slider"}
-            aria-label="Draw (auto-shapes)"
-            title={compareLayout === "slider" ? "Switch to side-by-side to draw" : "Draw (auto-shapes)"}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-              drawingActive
-                ? "border-primary/30 bg-primary/10 text-primary"
-                : "border-border bg-white/5 hover:bg-white/10"
-            )}
-          >
-            <PenTool className="size-3" /> Pen
-          </button>
-          {compareLayout !== "slider" && <LineWidthPicker width={drawingWidth} onChange={setDrawingWidth} />}
-          <button
-            type="button"
             onClick={handleDownload}
             disabled={!right}
             className="flex items-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
@@ -371,12 +411,14 @@ export function AssetVersionCompareModal({
                 alt={right?.name ?? ""}
                 active={drawingActive}
                 lineWidth={drawingWidth}
+                color={drawingColor}
                 overlayImageUrl={activeAnnotationUrl}
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
                 zoomToolActive={zoomToolActive}
                 onToggleZoomTool={() => { setDrawingActive(false); setZoomToolActive((a) => !a); }}
+                onHistoryChange={setDrawState}
               />
               {(onPrev || onNext) && zoom <= 1 && (
                 <>
@@ -408,6 +450,7 @@ export function AssetVersionCompareModal({
                 alt={left?.name ?? ""}
                 active={drawingActive}
                 lineWidth={drawingWidth}
+                color={drawingColor}
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
@@ -421,12 +464,14 @@ export function AssetVersionCompareModal({
                 alt={right?.name ?? ""}
                 active={drawingActive}
                 lineWidth={drawingWidth}
+                color={drawingColor}
                 overlayImageUrl={activeAnnotationUrl}
                 zoom={zoom}
                 pan={pan}
                 onZoomPanChange={(z, p) => { setZoom(z); setPan(p); }}
                 showZoomControls={false}
                 zoomToolActive={zoomToolActive}
+                onHistoryChange={setDrawState}
               />
             </div>
           ) : (
@@ -581,48 +626,100 @@ export function AssetVersionCompareModal({
             )}
           </div>
 
-          {isQc && right && (
-            <div className="shrink-0 border-t border-border p-3">
-              <div className="grid grid-cols-2 gap-2">
-                {right.status === "approved" ? (
-                  <button
-                    type="button"
-                    onClick={() => handleDecision("revoke")}
-                    disabled={deciding !== null}
-                    title="Move this back out of approved, without rejecting it — it re-enters the normal approve/reject flow."
-                    className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {deciding === "revoke" ? <Loader2 className="size-3 animate-spin" /> : <Undo2 className="size-3" />}
-                    Revoke
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => handleDecision("approve")}
-                    disabled={deciding !== null || right.status === "live"}
-                    className="flex items-center justify-center gap-1.5 rounded-lg bg-success px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {deciding === "approve" ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                    Approve
-                  </button>
+          {/* Drawing toolbar — sits under the comments field (matching the web app's layout),
+              not in the top header, since it's tightly coupled to "mark up the image, then
+              comment on the markup" rather than being a page-level action like Download/Close.
+              Undo/Redo used to float as an overlay on the image itself; they live here now too,
+              alongside Approve/Reject on the same row (ml-auto), matching the web layout. */}
+          <div className="shrink-0 border-t border-border p-3">
+            {/* No overflow-x-auto here (a prior version had one as a "just in case it's too
+                wide" safety net) — the color/width pickers below pop their dropdowns out below
+                this row's own height via `absolute`, and any non-visible overflow on an ancestor
+                clips those regardless of axis: setting only overflow-x forces the browser to
+                also treat overflow-y as non-visible (a visible/non-visible axis pair isn't
+                allowed), so it was silently clipping the dropdowns shut. The buttons are already
+                sized to fit the 320px sidebar in one row without it. */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => { setDrawingActive((a) => !a); setZoomToolActive(false); }}
+                disabled={compareLayout === "slider"}
+                aria-label={drawingActive ? "Stop drawing" : "Draw (auto-shapes)"}
+                title={compareLayout === "slider" ? "Switch to side-by-side to draw" : "Draw (auto-shapes)"}
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                  drawingActive
+                    ? "border-primary/30 bg-primary/10 text-primary"
+                    : "border-border bg-white/5 hover:bg-white/10"
                 )}
-                <button
-                  type="button"
-                  onClick={() => handleDecision("reject")}
-                  disabled={deciding !== null || right.status === "rejected" || right.status === "live"}
-                  className="flex items-center justify-center gap-1.5 rounded-lg bg-danger px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {deciding === "reject" ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
-                  Reject
-                </button>
-              </div>
-              {rightStatus && (
-                <p className={`mt-2 text-center text-[10px] ${rightStatus.textClass}`}>
-                  Currently viewing: {rightStatus.label} — actions apply to {right.version}, not the latest version.
-                </p>
+              >
+                <LineSquiggle className="size-3" />
+              </button>
+              {compareLayout !== "slider" && <ColorPicker color={drawingColor} onChange={setDrawingColor} />}
+              {compareLayout !== "slider" && <LineWidthPicker width={drawingWidth} onChange={setDrawingWidth} />}
+              <button
+                type="button"
+                onClick={() => rightCanvasRef.current?.undo()}
+                disabled={!drawState.canUndo}
+                aria-label="Undo annotation"
+                title="Undo"
+                className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-border bg-white/5 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Undo2 className="size-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => rightCanvasRef.current?.redo()}
+                disabled={!drawState.canRedo}
+                aria-label="Redo annotation"
+                title="Redo"
+                className="flex size-6 shrink-0 items-center justify-center rounded-lg border border-border bg-white/5 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Redo2 className="size-3" />
+              </button>
+
+              {isQc && right && (
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  {right.status === "approved" ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDecision("revoke")}
+                      disabled={deciding !== null}
+                      title="Move this back out of approved, without rejecting it — it re-enters the normal approve/reject flow."
+                      className="flex items-center justify-center gap-1 rounded-lg border border-border bg-white/5 px-2 py-1 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deciding === "revoke" ? <Loader2 className="size-2.5 animate-spin" /> : <Undo2 className="size-2.5" />}
+                      Revoke
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleDecision("approve")}
+                      disabled={deciding !== null || right.status === "live"}
+                      className="flex items-center justify-center gap-1 rounded-lg bg-success px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {deciding === "approve" ? <Loader2 className="size-2.5 animate-spin" /> : <Check className="size-2.5" />}
+                      Approve
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => handleDecision("reject")}
+                    disabled={deciding !== null || right.status === "rejected" || right.status === "live"}
+                    className="flex items-center justify-center gap-1 rounded-lg bg-danger px-2 py-1 text-xs font-medium text-white transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deciding === "reject" ? <Loader2 className="size-2.5 animate-spin" /> : <X className="size-2.5" />}
+                    Reject
+                  </button>
+                </div>
               )}
             </div>
-          )}
+            {isQc && right && rightStatus && (
+              <p className={`mt-2 text-center text-[10px] ${rightStatus.textClass}`}>
+                Currently viewing: {rightStatus.label} — actions apply to {right.version}, not the latest version.
+              </p>
+            )}
+          </div>
         </div>
       </div>
       <AssetDownloadDialog

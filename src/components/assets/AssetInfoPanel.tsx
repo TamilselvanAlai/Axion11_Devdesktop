@@ -42,6 +42,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
   const bumpLocalSyncTick = useAssetStore((s) => s.bumpLocalSyncTick);
   const markAssetSyncing = useAssetStore((s) => s.markAssetSyncing);
   const markAssetSynced = useAssetStore((s) => s.markAssetSynced);
+  const setOpenEditingAssetId = useAssetStore((s) => s.setOpenEditingAssetId);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
@@ -153,6 +154,7 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
       setLocalInfo(result);
       assetService.recordDownload(detail.id);
       assetEditSessionService.start(detail.id).catch(() => undefined);
+      setOpenEditingAssetId(detail.id);
       bumpLocalSyncTick();
       toast.success("Opened — saving the file will sync a new version automatically.");
       // Silently warms the rest of this batch in the background so opening the next image from

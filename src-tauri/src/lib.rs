@@ -47,6 +47,7 @@ pub fn run() {
             google_oauth::google_oauth_logout,
             google_oauth::google_app_signin,
             system_info::list_local_drives,
+            system_info::get_system_idle_seconds,
             local_sync::open_and_sync_asset,
             local_sync::download_asset_to_mount,
             local_sync::get_local_asset_info,

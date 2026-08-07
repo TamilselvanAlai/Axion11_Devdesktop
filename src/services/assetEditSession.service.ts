@@ -8,6 +8,9 @@ export interface AssetEditSessionEntry {
   startedAt: string;
   endedAt: string;
   durationSeconds: number;
+  /** Wall-clock open-to-close span minus durationSeconds — how much of the session was excluded
+   *  as idle (10+ min with no system input). */
+  idleSecondsExcluded: number;
   endReason: "SAVED" | "SWITCHED" | "SESSION_END";
 }
 
@@ -24,8 +27,23 @@ export const assetEditSessionService = {
     await apiClient.post("/asset-edit-sessions/end", { assetId });
   },
 
+  /** Sibling to workSessionService.heartbeat, called on the same tick while this asset's edit
+   *  session is open, so its idle-corrected time accumulates in step with overall active time. */
+  async tick(assetId: string, params: { idle: boolean; elapsedSeconds: number }): Promise<void> {
+    await apiClient.post("/asset-edit-sessions/tick", { assetId, ...params });
+  },
+
   async getToday(): Promise<AssetEditSessionEntry[]> {
     const { data } = await apiClient.get<AssetEditSessionEntry[]>("/asset-edit-sessions/today");
+    return data;
+  },
+
+  /** My own sessions (not every user's — see timeReportService for the admin-wide payroll
+   *  version) in an inclusive date range — backs the dashboard's This Week/This Month tabs. */
+  async getRange(from: string, to: string): Promise<AssetEditSessionEntry[]> {
+    const { data } = await apiClient.get<AssetEditSessionEntry[]>("/asset-edit-sessions/range", {
+      params: { from, to },
+    });
     return data;
   },
 

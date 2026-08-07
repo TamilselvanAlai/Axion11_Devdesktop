@@ -1,15 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { assetEditSessionService, type AssetEditSessionEntry } from "@/services/assetEditSession.service";
 import { formatDuration, parseBackendTimestamp } from "@/utils/formatters";
+import { rangeForPeriod, type ReportPeriod } from "@/utils/reportPeriods";
 
 const END_REASON_LABEL: Record<AssetEditSessionEntry["endReason"], string> = {
   SAVED: "Saved",
   SWITCHED: "Switched away before saving",
   SESSION_END: "App closed before saving",
+};
+
+const PERIOD_LABEL: Record<ReportPeriod, string> = {
+  today: "Today",
+  week: "This Week",
+  month: "This Month",
 };
 
 function formatTimeRange(startedAt: string, endedAt: string): string {
@@ -18,19 +26,30 @@ function formatTimeRange(startedAt: string, endedAt: string): string {
 }
 
 export function AssetsEditedModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+  const [period, setPeriod] = useState<ReportPeriod>("today");
   const [entries, setEntries] = useState<AssetEditSessionEntry[] | null>(null);
+
+  const range = useMemo(() => rangeForPeriod(period), [period]);
+
+  // Reset to "Today" each time the modal is reopened, rather than remembering the last tab —
+  // "today" is the default the dashboard card itself represents, so that's the expected view on
+  // open; the week/month tabs are there to look further back on demand, not to persist as state.
+  useEffect(() => {
+    if (open) setPeriod("today");
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
     setEntries(null);
     let cancelled = false;
-    assetEditSessionService.getToday().then((data) => {
+    const fetch = period === "today" ? assetEditSessionService.getToday() : assetEditSessionService.getRange(range.from, range.to);
+    fetch.then((data) => {
       if (!cancelled) setEntries(data);
     });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, period, range.from, range.to]);
 
   const totalSeconds = entries?.reduce((sum, e) => sum + e.durationSeconds, 0) ?? 0;
   const savedCount = entries?.filter((e) => e.endReason === "SAVED").length ?? 0;
@@ -40,7 +59,16 @@ export function AssetsEditedModal({ open, onOpenChange }: { open: boolean; onOpe
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Assets Edited Today</DialogTitle>
+          <div className="flex items-center justify-between gap-3 pr-6">
+            <DialogTitle>Assets Edited — {PERIOD_LABEL[period]}</DialogTitle>
+            <Tabs value={period} onValueChange={(v) => setPeriod(v as ReportPeriod)}>
+              <TabsList>
+                <TabsTrigger value="today">Today</TabsTrigger>
+                <TabsTrigger value="week">Week</TabsTrigger>
+                <TabsTrigger value="month">Month</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
           <p className="text-sm text-muted-foreground">
             {entries && entries.length > 0
               ? // The dashboard's "Assets Edited" count only includes completed saves — call out
@@ -57,7 +85,7 @@ export function AssetsEditedModal({ open, onOpenChange }: { open: boolean; onOpe
           {entries !== null && entries.length === 0 && (
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <Clock className="size-6" />
-              <p className="text-sm">No assets edited yet today.</p>
+              <p className="text-sm">No assets edited in this period.</p>
             </div>
           )}
 
@@ -79,6 +107,11 @@ export function AssetsEditedModal({ open, onOpenChange }: { open: boolean; onOpe
               </div>
               <div className="flex flex-col items-end gap-0.5">
                 <span className="font-mono text-sm font-semibold">{formatDuration(entry.durationSeconds * 1000)}</span>
+                {entry.idleSecondsExcluded >= 60 && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {formatDuration(entry.idleSecondsExcluded * 1000)} idle excluded
+                  </span>
+                )}
                 {entry.version && <span className="text-[10px] text-muted-foreground">v{entry.version}</span>}
               </div>
             </div>

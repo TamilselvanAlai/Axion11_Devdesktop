@@ -73,7 +73,7 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
   const breadcrumbs = findAncestorPath(projectTree, projectId) ?? [node.name];
 
   return (
-    <div className="relative flex flex-1 flex-col gap-2" {...dropHandlers}>
+    <div className="relative flex h-full min-h-0 flex-1 flex-col gap-2" {...dropHandlers}>
       {isDragOver && (
         <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-primary bg-primary/10">
           <UploadCloud className="size-8 text-primary" />
@@ -82,44 +82,60 @@ export function ProjectDetailView({ projectId }: { projectId: string }) {
       )}
       {isFolder ? (
         <>
-          <AssetsToolbar
-            breadcrumbs={breadcrumbs}
-            count={folderSummary.reduce((sum, f) => sum + f.assetCount, 0)}
-            countLabel={node.name}
-          />
-          {status === "loading" && folderSummary.length === 0 ? (
-            <FolderTableSkeleton />
-          ) : (
-            <ProjectFolderTable folders={folderSummary} />
-          )}
-          <FolderBulkActionBar folders={folderSummary} />
+          <div className="shrink-0">
+            <AssetsToolbar
+              breadcrumbs={breadcrumbs}
+              count={folderSummary.reduce((sum, f) => sum + f.assetCount, 0)}
+              countLabel={node.name}
+            />
+          </div>
+          {/* Only this region scrolls — the toolbar above and the table's own column-header row
+              (sticky inside ProjectFolderTable) both stay fixed in place while rows scroll under
+              them, instead of the whole page (toolbar included) scrolling together. */}
+          <div className="min-h-0 flex-1 overflow-auto">
+            {status === "loading" && folderSummary.length === 0 ? (
+              <FolderTableSkeleton />
+            ) : (
+              <ProjectFolderTable folders={folderSummary} />
+            )}
+          </div>
+          <div className="shrink-0">
+            <FolderBulkActionBar folders={folderSummary} />
+          </div>
         </>
       ) : (
         <>
-          <AssetsToolbar
-            breadcrumbs={breadcrumbs}
-            count={assets.length}
-            countLabel={node.name}
-            projectId={node.id}
-            parentProjectId={node.projectId}
-            assets={assets}
-          />
-          {uploading && (
-            <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-              <Loader2 className="size-3.5 shrink-0 animate-spin" />
-              {uploading.phase === "uploading"
-                ? `Uploading ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`
-                : `Processing ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`}
-            </div>
-          )}
-          {status === "loading" && assets.length === 0 ? (
-            <AssetsSkeleton viewMode={viewMode} />
-          ) : viewMode === "grid" ? (
-            <AssetsGrid assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
-          ) : (
-            <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
-          )}
-          <BulkActionBar />
+          <div className="shrink-0 flex flex-col gap-2">
+            <AssetsToolbar
+              breadcrumbs={breadcrumbs}
+              count={assets.length}
+              countLabel={node.name}
+              projectId={node.id}
+              parentProjectId={node.projectId}
+              assets={assets}
+            />
+            {uploading && (
+              <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+                <Loader2 className="size-3.5 shrink-0 animate-spin" />
+                {uploading.phase === "uploading"
+                  ? `Uploading ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`
+                  : `Processing ${uploading.total} file${uploading.total === 1 ? "" : "s"}…`}
+              </div>
+            )}
+          </div>
+          {/* Same fixed-header/scrolling-body split as the folder table above. */}
+          <div className="min-h-0 flex-1 overflow-auto">
+            {status === "loading" && assets.length === 0 ? (
+              <AssetsSkeleton viewMode={viewMode} />
+            ) : viewMode === "grid" ? (
+              <AssetsGrid assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
+            ) : (
+              <AssetsTable assets={assets} uploadingFiles={uploadingFileNames} uploadingPhase={uploading?.phase} />
+            )}
+          </div>
+          <div className="shrink-0">
+            <BulkActionBar />
+          </div>
         </>
       )}
     </div>

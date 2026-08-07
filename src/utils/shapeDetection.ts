@@ -111,34 +111,43 @@ export function detectShape(points: Point[]): { type: DetectedShapeType; points:
   const closingDist = Math.hypot(points[points.length - 1].x - points[0].x, points[points.length - 1].y - points[0].y);
   if (closingDist > diag * 0.4) return { type: null, points };
 
-  const area = polygonArea(points);
-  const perimeter = closedPerimeter(points);
+  const hull = convexHull(points);
+
+  // Check for straight edges (corners) first, before circularity — a cleanly-drawn square's
+  // circularity (~0.785, the isoperimetric quotient of a square) is mathematically *higher*
+  // than the 0.70 circle bar below, so checking circularity first swallows every square-ish
+  // rectangle into "circle" before this code ever runs. A shape with straight sides collapses
+  // to a handful of dominant corners under Douglas-Peucker simplification; a genuine curve
+  // doesn't (it keeps many corners at any reasonable tolerance), so leading with the corner
+  // count is what actually distinguishes them — circularity alone can't.
+  const corners = simplifyClosed(hull, diag * 0.08);
+  if (corners.length === 3) {
+    return { type: "triangle", points: corners };
+  }
+  if (corners.length === 4) {
+    return { type: "rectangle", points: [{ x: minX, y: minY }, { x: maxX, y: maxY }] };
+  }
+
+  // No clean 3/4-corner polygon — likely a curve (or a messy blob). Isoperimetric quotient:
+  // 4π·area / perimeter², computed from the hull rather than the raw mouse-tracked points — a
+  // mouse (unlike a stylus) is jittery enough that the raw path can wobble back on itself
+  // slightly, and the shoelace area formula is very sensitive to that self-crossing. The hull is
+  // immune to it (already just the outer boundary). A perfect circle scores 1; more elongated
+  // or irregular blobs score progressively lower.
+  const area = polygonArea(hull);
+  const perimeter = closedPerimeter(hull);
   if (perimeter === 0) return { type: null, points };
   const circularity = (4 * Math.PI * area) / (perimeter * perimeter);
 
-  // A perfect circle scores 1; a square scores ~0.785. 0.70 (not a stricter bar) is what the
-  // proven reference implementation uses — mouse-drawn circles are jagged enough that a higher
-  // bar (previously 0.85 here) pushed real circles down into the rectangle fallback below.
   if (circularity >= 0.7) {
     const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
     const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
     const radius = points.reduce((s, p) => s + Math.hypot(p.x - cx, p.y - cy), 0) / points.length;
     return { type: "circle", points: [{ x: cx, y: cy }, { x: cx + radius, y: cy }] };
   }
-
-  // Below the circle bar: try to read the convex hull's dominant corners — 3 clean corners
-  // means triangle. Anything else falls through to the same circularity-based rectangle
-  // catch-all the reference implementation used, so mid-circularity blobs still resolve to
-  // *something* rather than being left as raw freehand.
-  const hull = convexHull(points);
-  const corners = simplifyClosed(hull, diag * 0.08);
-
-  if (corners.length === 3) {
-    return { type: "triangle", points: corners };
-  }
-  if (corners.length === 4 || circularity >= 0.35) {
+  if (circularity >= 0.35) {
     return { type: "rectangle", points: [{ x: minX, y: minY }, { x: maxX, y: maxY }] };
   }
 
-  return { type: null, points };
+  return { type: null, points }; // path too irregular to confidently snap — leave it as freehand pen
 }

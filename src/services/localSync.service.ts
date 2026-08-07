@@ -64,11 +64,23 @@ async function revealInFileManager(path: string): Promise<void> {
   await revealItemInDir(path);
 }
 
+/** Seconds since the last physical mouse/keyboard input, system-wide — not scoped to this app's
+ *  own window, since the user's real activity typically happens inside a 3rd-party editor
+ *  (Photoshop, etc.), a separate OS process this app's WebView can't see input events from.
+ *  Returns 0 (never idle) on the web build or any platform without a native idle source wired
+ *  up, so callers degrade to "always active" rather than mis-flagging everyone as idle. */
+async function getSystemIdleSeconds(): Promise<number> {
+  if (!isTauri()) return 0;
+  const { invoke } = await import("@tauri-apps/api/core");
+  return invoke<number>("get_system_idle_seconds");
+}
+
 export const localSyncService = {
   isTauri,
   revealInFileManager,
   openExternalUrl,
   downloadToMount,
+  getSystemIdleSeconds,
 
   /** Downloads the asset locally (mirroring the project tree), opens it, and watches it —
    *  any save is automatically re-uploaded as a new version of the same asset.

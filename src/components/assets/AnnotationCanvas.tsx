@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Undo2, Trash2, ImageOff, ZoomIn, ZoomOut, Maximize2, Crosshair } from "lucide-react";
+import { ImageOff, ZoomIn, ZoomOut, Maximize2, Crosshair } from "lucide-react";
 import { detectShape, type Point } from "@/utils/shapeDetection";
 import { cn } from "@/lib/utils";
 
@@ -13,7 +13,7 @@ interface Stroke {
   width: number;
 }
 
-const STROKE_COLOR = "#FF4444";
+const DEFAULT_STROKE_COLOR = "#FF4444";
 
 function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
   if (stroke.points.length === 0) return;
@@ -53,13 +53,29 @@ function drawStroke(ctx: CanvasRenderingContext2D, stroke: Stroke) {
 
 export interface AnnotationCanvasHandle {
   hasStrokes: () => boolean;
-  /** Centroid of every point across every stroke, in natural-image pixel space. */
+  /** Centroid of every point across every stroke, scaled up to natural-image pixel space (the
+   *  canvas itself draws in on-screen coordinates — see the <canvas> element below — so this is
+   *  the one place that conversion happens, for callers like the backend that expect mark
+   *  positions in the same space as the full-resolution image). */
   getMarkCenter: () => { x: number; y: number } | null;
   /** Bakes just the strokes onto a transparent-background PNG at natural image resolution,
    *  for attaching to a comment — null when there's nothing drawn. */
   exportAnnotationImage: () => string | null;
   /** Clears strokes — call after a comment carrying them has been saved. */
   clear: () => void;
+  /** Steps one entry back/forward through the stroke history — backs the toolbar's Undo/Redo
+   *  buttons (moved off the canvas itself, see onHistoryChange below). */
+  undo: () => void;
+  redo: () => void;
+}
+
+/** Reactive undo/redo button-enabled state, pushed out on every stroke/history change so a
+ *  toolbar living outside this component (see AssetVersionCompareModal) can render its Undo/Redo
+ *  buttons correctly without polling — the imperative handle above is call-on-demand only and
+ *  doesn't re-render the parent by itself. */
+export interface AnnotationHistoryState {
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 interface AnnotationCanvasProps {
@@ -68,6 +84,8 @@ interface AnnotationCanvasProps {
   /** Whether the pen tool is currently armed — when false the canvas is purely visual (no pointer capture). */
   active: boolean;
   lineWidth: number;
+  /** Stroke color for new strokes — defaults to DEFAULT_STROKE_COLOR when omitted. */
+  color?: string;
   /** A saved annotation's image (e.g. from a clicked comment) shown on top of the base image,
    *  aligned pixel-for-pixel with it. */
   overlayImageUrl?: string | null;
@@ -85,6 +103,9 @@ interface AnnotationCanvasProps {
    *  zooms in centered on it instead of drawing/panning. */
   zoomToolActive?: boolean;
   onToggleZoomTool?: () => void;
+  /** Fired whenever the stroke history changes, so an external toolbar can mirror Undo/Redo/
+   *  Trash enabled state — see AnnotationHistoryState. */
+  onHistoryChange?: (state: AnnotationHistoryState) => void;
 }
 
 const MIN_ZOOM = 1;
@@ -97,6 +118,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     alt,
     active,
     lineWidth,
+    color = DEFAULT_STROKE_COLOR,
     overlayImageUrl,
     zoom = 1,
     pan = { x: 0, y: 0 },
@@ -104,6 +126,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     showZoomControls = true,
     zoomToolActive = false,
     onToggleZoomTool,
+    onHistoryChange,
   },
   ref
 ) {
@@ -255,6 +278,11 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     if (currentStroke) drawStroke(ctx, currentStroke);
   }, [strokes, currentStroke, box]);
 
+  useEffect(() => {
+    onHistoryChange?.({ canUndo: historyIndex > 0, canRedo: historyIndex < history.length - 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyIndex, history.length]);
+
   useImperativeHandle(
     ref,
     () => ({
@@ -262,20 +290,30 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
       getMarkCenter: () => {
         const allPoints = strokes.flatMap((s) => s.points);
         if (allPoints.length === 0) return null;
-        return {
-          x: allPoints.reduce((sum, p) => sum + p.x, 0) / allPoints.length,
-          y: allPoints.reduce((sum, p) => sum + p.y, 0) / allPoints.length,
-        };
+        const liveW = canvasRef.current?.width || 1;
+        const liveH = canvasRef.current?.height || 1;
+        const natW = naturalSize?.w || liveW;
+        const natH = naturalSize?.h || liveH;
+        const cx = allPoints.reduce((sum, p) => sum + p.x, 0) / allPoints.length;
+        const cy = allPoints.reduce((sum, p) => sum + p.y, 0) / allPoints.length;
+        return { x: cx * (natW / liveW), y: cy * (natH / liveH) };
       },
       exportAnnotationImage: () => {
         if (strokes.length === 0) return null;
-        const w = naturalSize?.w || canvasRef.current?.width || 1920;
-        const h = naturalSize?.h || canvasRef.current?.height || 1080;
+        // Strokes are recorded in the (small, on-screen) canvas buffer's own coordinates — see
+        // the <canvas> element below — so bake at the image's true resolution by scaling the
+        // context up front: every point/lineWidth/radius drawn with those small coordinates then
+        // lands in the right place at full size automatically, no per-shape math needed.
+        const liveW = canvasRef.current?.width || 1;
+        const liveH = canvasRef.current?.height || 1;
+        const srcW = naturalSize?.w || liveW || 1920;
+        const srcH = naturalSize?.h || liveH || 1080;
         const out = document.createElement("canvas");
-        out.width = w;
-        out.height = h;
+        out.width = srcW;
+        out.height = srcH;
         const ctx = out.getContext("2d");
         if (!ctx) return null;
+        ctx.scale(srcW / liveW, srcH / liveH);
         for (const stroke of strokes) drawStroke(ctx, stroke);
         return out.toDataURL("image/png");
       },
@@ -285,8 +323,10 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
         setHistory([[]]);
         setHistoryIndex(0);
       },
+      undo: () => handleUndo(),
+      redo: () => handleRedo(),
     }),
-    [strokes, naturalSize]
+    [strokes, naturalSize, historyIndex, history]
   );
 
   function toCanvasPoint(e: React.MouseEvent): Point {
@@ -307,7 +347,7 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
       id: `${Date.now()}`,
       tool: "pen",
       points: [toCanvasPoint(e)],
-      color: STROKE_COLOR,
+      color,
       width: lineWidth * widthScale,
     });
   }
@@ -339,12 +379,11 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
     setStrokes(history[nextIndex]);
   }
 
-  function handleClear() {
-    if (strokes.length === 0) return;
-    setStrokes([]);
-    const nextHistory = [...history.slice(0, historyIndex + 1), []];
-    setHistory(nextHistory);
-    setHistoryIndex(nextHistory.length - 1);
+  function handleRedo() {
+    if (historyIndex >= history.length - 1) return;
+    const nextIndex = historyIndex + 1;
+    setHistoryIndex(nextIndex);
+    setStrokes(history[nextIndex]);
   }
 
   const canPan = Boolean(onZoomPanChange) && zoom > MIN_ZOOM && !active;
@@ -391,10 +430,21 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
               style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
             />
           )}
+          {/* Buffer sized 1:1 to this canvas's own on-screen box (not the natural image
+              resolution) — a canvas has no intrinsic "contain" scaling of its own, so if the
+              buffer were natural-resolution while the box (rounded from getBoundingClientRect)
+              only *approximately* matches that resolution's aspect ratio, the browser stretches
+              the buffer non-uniformly to fit. That's exactly what caused uneven stroke width on
+              rectangle/square sides and drawn shapes landing slightly off from the cursor: drawn
+              coordinates and lineWidth were correct in buffer space but visually skewed by a
+              different X/Y scale factor on screen. At 1:1 there's no stretch, so what's drawn in
+              the buffer is exactly what's shown — full natural-resolution export is handled
+              separately as an explicit, uniform scale-up in exportAnnotationImage/getMarkCenter
+              above, matching the web app's implementation this was ported from. */}
           <canvas
             ref={canvasRef}
-            width={naturalSize?.w || 1920}
-            height={naturalSize?.h || 1080}
+            width={Math.max(1, Math.round(box.width)) || 1920}
+            height={Math.max(1, Math.round(box.height)) || 1080}
             className="absolute"
             style={{
               left: box.left,
@@ -409,27 +459,6 @@ export const AnnotationCanvas = forwardRef<AnnotationCanvasHandle, AnnotationCan
             onMouseUp={commitStroke}
             onMouseLeave={commitStroke}
           />
-          {strokes.length > 0 && (
-            <div className="absolute bottom-3 right-3 flex items-center gap-1">
-              <button
-                type="button"
-                onClick={handleUndo}
-                disabled={historyIndex <= 0}
-                aria-label="Undo annotation"
-                className="flex size-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <Undo2 className="size-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleClear}
-                aria-label="Clear annotations"
-                className="flex size-7 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
-            </div>
-          )}
           {onZoomPanChange && showZoomControls && (
             <div className="absolute bottom-3 left-3 flex items-center gap-0.5 rounded-full bg-black/60 p-1 text-xs font-medium text-white">
               {onToggleZoomTool && (

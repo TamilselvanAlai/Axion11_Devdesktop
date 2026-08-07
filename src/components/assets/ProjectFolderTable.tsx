@@ -31,8 +31,8 @@ export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
   }
 
   return (
-    <Table>
-      <TableHeader>
+    <Table containerClassName="overflow-x-visible overflow-y-visible">
+      <TableHeader className="sticky top-0 z-10 bg-background">
         <TableRow>
           <TableHead className="w-10">
             <Checkbox

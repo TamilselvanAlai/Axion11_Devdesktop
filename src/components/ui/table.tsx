@@ -4,11 +4,22 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+interface TableProps extends React.ComponentProps<"table"> {
+  /** Extends/overrides the wrapper div's classes (default "relative w-full overflow-x-auto").
+   *  Needed when a caller nests this inside its own scrolling ancestor and wants a sticky
+   *  <thead> to stick to *that* ancestor: `overflow-x-auto` alone forces the browser to also
+   *  treat overflow-y as `auto` (a visible/non-visible axis pair isn't allowed), which silently
+   *  makes this wrapper its own scroll container too — a sticky header inside it then sticks to
+   *  this inner box instead of the outer one that's actually scrolling, and visibly does
+   *  nothing. Pass `overflow-x-visible overflow-y-visible` (or similar) to opt out of that. */
+  containerClassName?: string;
+}
+
+function Table({ className, containerClassName, ...props }: TableProps) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      className={cn("relative w-full overflow-x-auto", containerClassName)}
     >
       <table
         data-slot="table"

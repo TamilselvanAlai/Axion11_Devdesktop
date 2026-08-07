@@ -128,8 +128,8 @@ export function AssetsTable({
 
   return (
     <>
-    <Table className="table-fixed">
-      <TableHeader>
+    <Table className="table-fixed" containerClassName="overflow-x-visible overflow-y-visible">
+      <TableHeader className="sticky top-0 z-10 bg-background">
         <TableRow>
           <TableHead className="w-8">
             <Checkbox

@@ -24,6 +24,11 @@ interface AssetStoreState {
    *  depends on this to re-check its file's local presence without polling. */
   localSyncTick: number;
   bumpLocalSyncTick: () => void;
+  /** The asset id with a currently-open edit session (Open File/Retouch clicked, not yet synced
+   *  back) — set by AssetInfoPanel, read by useWorkSessionTracking's activity tick so it knows
+   *  which asset's idle-corrected timer to extend. Null when nothing is actively being edited. */
+  openEditingAssetId: string | null;
+  setOpenEditingAssetId: (id: string | null) => void;
   /** Asset ids currently downloading in the background (e.g. batch prefetch after opening one
    *  asset, or the bulk "Open Files" action) — SyncStatusIcon shows a spinning state for any id
    *  in this set instead of its normal synced/not-synced icon, so the in-progress download is
@@ -96,6 +101,8 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   multiSelectedIds: new Set(),
   localSyncTick: 0,
   bumpLocalSyncTick: () => set((state) => ({ localSyncTick: state.localSyncTick + 1 })),
+  openEditingAssetId: null,
+  setOpenEditingAssetId: (openEditingAssetId) => set({ openEditingAssetId }),
   syncingAssetIds: new Set(),
   markAssetSyncing: (id) =>
     set((state) => {

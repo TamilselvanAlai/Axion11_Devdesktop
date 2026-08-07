@@ -135,8 +135,9 @@ function mapStats(s: ApiDashboardStats, taskGroups: ApiTaskGroup[], session: Wor
           value: formatDuration(session.activeSecondsToday),
           delta: formatSignedDuration(session.activeSecondsToday - session.activeSecondsYesterday),
           description: "Active Editing Time",
+          allTimeValue: formatDuration(session.activeSecondsAllTime),
         }
-      : { value: "0m", delta: "No activity yet", description: "Active Editing Time" },
+      : { value: "0m", delta: "No activity yet", description: "Active Editing Time", allTimeValue: "0m" },
     tasks:
       allTasks.length > 0
         ? { completed, pending, delta: tasksDelta }
