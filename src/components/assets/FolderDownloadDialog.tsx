@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { assetService } from "@/services/asset.service";
 import { localSyncService } from "@/services/localSync.service";
 import { isUrl } from "@/utils/helpers";
@@ -57,7 +58,29 @@ interface FolderDownloadDialogProps {
 export function FolderDownloadDialog({ open, onOpenChange, folderIds, folderLabel }: FolderDownloadDialogProps) {
   const projectTree = useAssetStore((s) => s.projectTree);
   const mountPoint = useMountSettingsStore((s) => s.mountPoint);
-  const [selected, setSelected] = useState<Set<Category>>(new Set(["Source", "Draft", "Final"]));
+  const [selected, setSelected] = useState<Set<Category>>(new Set());
+  // Which categories this specific folder actually has assets for — null while still loading.
+  // A folder that's still all-v1 (nothing sent to draft/final yet) shouldn't offer Draft/Final
+  // as choices at all, since checking them would just silently download nothing for that tier.
+  const [availableCategories, setAvailableCategories] = useState<Category[] | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setAvailableCategories(null);
+      return;
+    }
+    let cancelled = false;
+    assetService.getAllAssetsInFolders(folderIds, projectTree).then((assets) => {
+      if (cancelled) return;
+      const available = CATEGORIES.map((c) => c.key).filter((key) => pickPerChain(assets, key).length > 0);
+      setAvailableCategories(available);
+      setSelected(new Set(available));
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, folderIds.join(",")]);
 
   function toggle(cat: Category) {
     setSelected((prev) => {
@@ -88,15 +111,24 @@ export function FolderDownloadDialog({ open, onOpenChange, folderIds, folderLabe
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-1.5">
-          {CATEGORIES.map((c) => (
-            <label
-              key={c.key}
-              className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-white/5"
-            >
-              <Checkbox checked={selected.has(c.key)} onCheckedChange={() => toggle(c.key)} />
-              <span className="min-w-0 flex-1 truncate">{c.label}</span>
-            </label>
-          ))}
+          {availableCategories === null &&
+            [0, 1].map((i) => <Skeleton key={i} className="h-10 rounded-lg" />)}
+          {availableCategories?.length === 0 && (
+            <p className="px-1 py-2 text-xs text-muted-foreground">No downloadable files found in this folder.</p>
+          )}
+          {availableCategories?.length ? (
+            <>
+              {CATEGORIES.filter((c) => availableCategories.includes(c.key)).map((c) => (
+                <label
+                  key={c.key}
+                  className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-border px-3 py-2 text-sm transition-colors hover:bg-white/5"
+                >
+                  <Checkbox checked={selected.has(c.key)} onCheckedChange={() => toggle(c.key)} />
+                  <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                </label>
+              ))}
+            </>
+          ) : null}
         </div>
         <DialogFooter>
           <Button onClick={handleDownload} disabled={selected.size === 0}>

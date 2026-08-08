@@ -18,6 +18,14 @@ import { useAssetStore, useMountSettingsStore } from "@/store";
 import { findAncestorPath, versionFolderName, versionLabel } from "@/utils/assetPath";
 import type { Asset } from "@/types";
 
+/** Math.round(sizeMb) alone collapses any file under 0.5 MB down to a bare "0 MB", which reads
+ *  as broken/missing rather than small — keep one decimal place below 1 MB instead. */
+function formatFileSize(mb: number): string {
+  if (mb >= 1000) return `${(mb / 1000).toFixed(1)} GB`;
+  if (mb >= 1) return `${Math.round(mb)} MB`;
+  return `${mb.toFixed(1)} MB`;
+}
+
 interface AssetDownloadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -92,9 +100,7 @@ export function AssetDownloadDialog({ open, onOpenChange, versions, defaultSelec
               <Checkbox checked={selected.has(v.id)} onCheckedChange={() => toggle(v.id)} />
               <span className="min-w-0 flex-1 truncate">{versionLabel(v)}</span>
               {v.sizeMb > 0 && (
-                <span className="shrink-0 font-mono text-xs text-muted-foreground">
-                  {v.sizeMb >= 1000 ? `${(v.sizeMb / 1000).toFixed(1)} GB` : `${Math.round(v.sizeMb)} MB`}
-                </span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">{formatFileSize(v.sizeMb)}</span>
               )}
             </label>
           ))}

@@ -11,6 +11,10 @@ export interface TimeManagementStat {
   /** Lifetime idle-corrected active-editing total across every session ever recorded, formatted
    *  (e.g. "142h 30m") — shown alongside today's figure, not in place of it. */
   allTimeValue: string;
+  /** Raw seconds behind `value`, as of this snapshot — lets the dashboard tick the displayed
+   *  time up locally in real time (see useWorkSessionTracking's live-bonus tracking) instead of
+   *  waiting on the next snapshot refetch to reflect seconds that already elapsed client-side. */
+  activeSecondsToday: number;
 }
 
 export interface TasksStat {

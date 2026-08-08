@@ -1,13 +1,11 @@
 import { useRef, useState } from "react";
-import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, GripVertical, Zap, Cloud, HardDrive, BarChart3 } from "lucide-react";
+import { Home, Clock, RefreshCw, FolderKanban, ChevronLeft, ChevronRight, GripVertical, Zap, Cloud, HardDrive } from "lucide-react";
 import { SidebarNavItem } from "@/components/navigation/SidebarNavItem";
 import { ProjectTree } from "@/components/navigation/ProjectTree";
 import { useProjectTree } from "@/hooks/useProjectTree";
 import { useCloudSync } from "@/hooks/useCloudSync";
 import { useLocalDrives } from "@/hooks/useLocalDrives";
-import { useAuthStore } from "@/store";
 import { ROUTES } from "@/constants/routes";
-import { BILLING_ROLES } from "@/middleware/requireRole";
 
 function formatGb(bytes: number) {
   const gb = bytes / (1024 * 1024 * 1024);
@@ -51,8 +49,6 @@ export function AppSidebar() {
   const projectTree = useProjectTree();
   const { status: syncStatus } = useCloudSync();
   const { drives: localDrives, isTauri } = useLocalDrives();
-  const rawRole = useAuthStore((state) => state.user?.rawRole);
-  const canViewReports = !!rawRole && BILLING_ROLES.includes(rawRole);
   const primaryDrive = localDrives
     ? [...localDrives].sort((a, b) => b.totalBytes - a.totalBytes)[0]
     : null;
@@ -177,9 +173,6 @@ export function AppSidebar() {
             </p>
           )}
           <SidebarNavItem to={ROUTES.transfers} icon={RefreshCw} label="Transfers" collapsed={collapsed} />
-          {canViewReports && (
-            <SidebarNavItem to={ROUTES.reports} icon={BarChart3} label="Reports" collapsed={collapsed} />
-          )}
         </div>
       </nav>
 

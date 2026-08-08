@@ -8,9 +8,10 @@ import { dashboardService } from "@/services/dashboard.service";
 const TICK_INTERVAL_MS = 30_000;
 const TICK_INTERVAL_SECONDS = TICK_INTERVAL_MS / 1000;
 
-/** No system-wide input (mouse/keyboard, anywhere — not just this app's own window) for this
- *  long means the time since is excluded from active-editing time. Matches the product
- *  requirement of not counting time the desktop app sat idle. */
+/** No fresh system-wide input (mouse/keyboard, anywhere — not just this app's own window) for
+ *  this long, *measured locally from ticks* (see the streak tracking below, not read as a raw
+ *  absolute value) means the time since is excluded from active-editing time. Matches the
+ *  product requirement of not counting time the desktop app sat idle. */
 const IDLE_THRESHOLD_SECONDS = 10 * 60;
 
 /** Drives the real login-to-logout working-hours tracking used by the dashboard's stat cards.
@@ -34,10 +35,28 @@ const IDLE_THRESHOLD_SECONDS = 10 * 60;
 export function useWorkSessionTracking() {
   const token = useAuthStore((state) => state.token);
   const started = useRef(false);
+  // Windows' idle clock ("seconds since the last physical input, anywhere on the system") is an
+  // absolute value with no idea when *this* tracking session started — if the user was away from
+  // the mouse for a while before opening a file, that stale reading otherwise bleeds straight
+  // into the very first ticks of a brand-new, actually-active session and wrongly zeroes it out.
+  // Tracking it as a delta between consecutive ticks sidesteps that entirely: the raw value only
+  // ever climbs between real inputs and snaps back near zero the instant a new one happens, so "did
+  // it drop since last tick" is a clean, self-contained signal for "did real input happen roughly
+  // in the last tick's window" — independent of whatever the absolute number happened to be
+  // before tracking even started. previousIdleSecondsRef is null until the first tick lands (no
+  // delta possible yet — that first tick defaults to active, since starting the session/opening a
+  // file is itself recent real interaction). idleStreakSecondsRef accumulates consecutive
+  // no-fresh-input ticks and only actually starts excluding time once it reaches the full 10
+  // minutes, matching "idle for 10 min → don't count it" — not "any single 30s gap → don't count
+  // it", which would zero out totally normal pauses between clicks.
+  const previousIdleSecondsRef = useRef<number | null>(null);
+  const idleStreakSecondsRef = useRef(0);
 
   useEffect(() => {
     if (!token) {
       started.current = false;
+      previousIdleSecondsRef.current = null;
+      idleStreakSecondsRef.current = 0;
       return;
     }
     if (started.current) return;
@@ -47,9 +66,29 @@ export function useWorkSessionTracking() {
 
     const interval = setInterval(async () => {
       const idleSeconds = await localSyncService.getSystemIdleSeconds().catch(() => 0);
-      const idle = idleSeconds >= IDLE_THRESHOLD_SECONDS;
+
+      const previous = previousIdleSecondsRef.current;
+      const freshInput = previous === null || idleSeconds < previous;
+      previousIdleSecondsRef.current = idleSeconds;
+
+      if (freshInput) {
+        idleStreakSecondsRef.current = 0;
+      } else {
+        idleStreakSecondsRef.current += TICK_INTERVAL_SECONDS;
+      }
+      const idle = idleStreakSecondsRef.current >= IDLE_THRESHOLD_SECONDS;
 
       workSessionService.heartbeat({ idle, elapsedSeconds: TICK_INTERVAL_SECONDS }).catch(() => undefined);
+
+      // Updates the dashboard's Active Editing Time immediately, in lockstep with this tick —
+      // no network round trip and no polling wait, since this hook already knows the outcome of
+      // every tick the instant it happens. The backend heartbeat call above is still the source
+      // of truth for what actually gets persisted; this only keeps the on-screen number honest
+      // in between snapshot refetches (see dashboardStore.setSnapshot, which resets this back to
+      // 0 once a fresh snapshot's own total supersedes it).
+      if (!idle) {
+        useDashboardStore.getState().bumpLiveActiveSeconds(TICK_INTERVAL_SECONDS);
+      }
 
       const openEditingAssetId = useAssetStore.getState().openEditingAssetId;
       if (openEditingAssetId) {

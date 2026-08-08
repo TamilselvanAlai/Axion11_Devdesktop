@@ -38,8 +38,8 @@ export const assetEditSessionService = {
     return data;
   },
 
-  /** My own sessions (not every user's — see timeReportService for the admin-wide payroll
-   *  version) in an inclusive date range — backs the dashboard's This Week/This Month tabs. */
+  /** My own sessions in an inclusive date range — backs the dashboard's This Week/This Month
+   *  tabs on the Assets Edited card. */
   async getRange(from: string, to: string): Promise<AssetEditSessionEntry[]> {
     const { data } = await apiClient.get<AssetEditSessionEntry[]>("/asset-edit-sessions/range", {
       params: { from, to },

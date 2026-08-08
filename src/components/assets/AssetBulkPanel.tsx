@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Check, FolderOpen, Loader2, Undo2, X } from "lucide-react";
+import { Check, Download, FolderOpen, Loader2, Undo2, X } from "lucide-react";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { assetService } from "@/services/asset.service";
 import { assetEditSessionService } from "@/services/assetEditSession.service";
 import { localSyncService } from "@/services/localSync.service";
-import { buildAssetRelativePath } from "@/utils/assetPath";
+import { buildAssetRelativePath, findAncestorPath, versionFolderName } from "@/utils/assetPath";
 import { useAssetStore, useMountSettingsStore } from "@/store";
 import { useUser } from "@/hooks/useUser";
 import type { Asset, AssetStatus } from "@/types";
@@ -22,6 +22,7 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
   const user = useUser();
   const isQc = user?.role === "qc" || user?.role === "admin";
   const [opening, setOpening] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [deciding, setDeciding] = useState<"approve" | "reject" | "revoke" | null>(null);
   const isTauri = localSyncService.isTauri();
   const allApproved = assets.length > 0 && assets.every((a) => a.status === "approved");
@@ -96,6 +97,30 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
     else if (failed < assets.length) toast.success(`Opened ${assets.length - failed} of ${assets.length} files.`);
   }
 
+  // Downloads exactly the selected assets, each at whichever version is currently selected in
+  // the table — unlike AssetDownloadDialog (pick a version for one asset) or FolderDownloadDialog
+  // (pick a version tier for every asset in a folder), there's no version choice to make here:
+  // the selection itself already says exactly which rows to fetch.
+  async function downloadSelected() {
+    setDownloading(true);
+    let failed = 0;
+    for (const asset of assets) {
+      try {
+        if (!asset.downloadUrl) throw new Error("No file available to download.");
+        const ancestors = (asset.batchId && findAncestorPath(projectTree, asset.batchId)) || [];
+        const relativePath = [...ancestors, versionFolderName(asset), asset.name].join("/");
+        await localSyncService.downloadToMount(asset.downloadUrl, relativePath, mountPoint);
+        assetService.recordDownload(asset.id);
+      } catch (err) {
+        failed++;
+        toast.error(err instanceof Error ? `${asset.name}: ${err.message}` : `Failed to download ${asset.name}.`);
+      }
+    }
+    setDownloading(false);
+    if (failed === 0) toast.success(`Downloaded ${assets.length} file${assets.length === 1 ? "" : "s"}.`);
+    else if (failed < assets.length) toast.success(`Downloaded ${assets.length - failed} of ${assets.length} files.`);
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto p-4">
@@ -130,6 +155,29 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
           {assets.length > 16 && (
             <p className="-mt-2 text-[10px] text-muted-foreground">+{assets.length - 16} more</p>
           )}
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-border p-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={openAll}
+            disabled={opening || assets.length === 0}
+            className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {opening ? <Loader2 className="size-3 animate-spin" /> : <FolderOpen className="size-3" />}
+            {opening ? "Opening…" : `Open (${assets.length})`}
+          </button>
+          <button
+            type="button"
+            onClick={downloadSelected}
+            disabled={downloading || assets.length === 0}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-white/5 px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {downloading ? <Loader2 className="size-3 animate-spin" /> : <Download className="size-3" />}
+            {downloading ? "Downloading…" : `Download (${assets.length})`}
+          </button>
         </div>
       </div>
 
@@ -171,18 +219,6 @@ export function AssetBulkPanel({ assets, onClear }: { assets: Asset[]; onClear: 
           </div>
         </div>
       )}
-
-      <div className="shrink-0 border-t border-border p-4">
-        <button
-          type="button"
-          onClick={openAll}
-          disabled={opening || assets.length === 0}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-md shadow-primary/20 transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {opening ? <Loader2 className="size-3 animate-spin" /> : <FolderOpen className="size-3" />}
-          {opening ? "Opening…" : `Open Files (${assets.length})`}
-        </button>
-      </div>
     </div>
   );
 }

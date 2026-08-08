@@ -1,6 +1,8 @@
 import { FileText, Clock, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useDashboardStore } from "@/store";
+import { formatDuration } from "@/utils/formatters";
 import type { DashboardStatCards } from "@/types";
 
 function DeltaBadge({ delta }: { delta: string }) {
@@ -16,6 +18,11 @@ export function StatisticsSection({
   stats: DashboardStatCards | null;
   onAssetsEditedClick?: () => void;
 }) {
+  // Ticks up every ~30s directly from useWorkSessionTracking's own tick loop (see
+  // dashboardStore) — no polling or refetch involved, so this stays current between snapshot
+  // fetches instead of only updating whenever one happens to land.
+  const liveActiveSecondsBonus = useDashboardStore((s) => s.liveActiveSecondsBonus);
+
   if (!stats) {
     return (
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -25,6 +32,10 @@ export function StatisticsSection({
       </div>
     );
   }
+
+  const liveTimeManagementValue = formatDuration(
+    (stats.timeManagement.activeSecondsToday + liveActiveSecondsBonus) * 1000
+  );
 
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -50,7 +61,7 @@ export function StatisticsSection({
         </div>
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Time Management</p>
-          <p className="mt-0.5 text-xl font-semibold tracking-tight">{stats.timeManagement.value}</p>
+          <p className="mt-0.5 text-xl font-semibold tracking-tight">{liveTimeManagementValue}</p>
           <p className="text-xs text-muted-foreground">
             {stats.timeManagement.description} · {stats.timeManagement.allTimeValue} total in app
           </p>
