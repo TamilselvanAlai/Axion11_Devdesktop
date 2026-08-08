@@ -10,9 +10,15 @@ const TICK_INTERVAL_SECONDS = TICK_INTERVAL_MS / 1000;
 
 /** No fresh system-wide input (mouse/keyboard, anywhere — not just this app's own window) for
  *  this long, *measured locally from ticks* (see the streak tracking below, not read as a raw
- *  absolute value) means the time since is excluded from active-editing time. Matches the
- *  product requirement of not counting time the desktop app sat idle. */
-const IDLE_THRESHOLD_SECONDS = 10 * 60;
+ *  absolute value) means the time since is excluded from Active Editing Time. Generous on
+ *  purpose — tolerates a longer thinking/waiting pause mid-task without losing credit for it. */
+const ACTIVE_IDLE_THRESHOLD_SECONDS = 10 * 60;
+
+/** Same streak, a stricter bar for Time In App — "was the user at their desk at all" rather than
+ *  "were they still mid-task". Deliberately shorter than the Active Editing Time bar above, so a
+ *  4-minute silent gap can count as still-active-editing but already excluded from Time In App —
+ *  that's the intended distinction between the two figures, not a bug. */
+const APP_IDLE_THRESHOLD_SECONDS = 3 * 60;
 
 /** Drives the real login-to-logout working-hours tracking used by the dashboard's stat cards.
  *  Mounted once, app-wide (see AppProviders):
@@ -46,9 +52,9 @@ export function useWorkSessionTracking() {
   // before tracking even started. previousIdleSecondsRef is null until the first tick lands (no
   // delta possible yet — that first tick defaults to active, since starting the session/opening a
   // file is itself recent real interaction). idleStreakSecondsRef accumulates consecutive
-  // no-fresh-input ticks and only actually starts excluding time once it reaches the full 10
-  // minutes, matching "idle for 10 min → don't count it" — not "any single 30s gap → don't count
-  // it", which would zero out totally normal pauses between clicks.
+  // no-fresh-input ticks — Active Editing Time and Time In App each compare this same streak
+  // against their own bar (10 min / 3 min), rather than reacting to any single 30s gap, which
+  // would zero out totally normal pauses between clicks.
   const previousIdleSecondsRef = useRef<number | null>(null);
   const idleStreakSecondsRef = useRef(0);
 
@@ -76,9 +82,13 @@ export function useWorkSessionTracking() {
       } else {
         idleStreakSecondsRef.current += TICK_INTERVAL_SECONDS;
       }
-      const idle = idleStreakSecondsRef.current >= IDLE_THRESHOLD_SECONDS;
+      // idleForApp flips true first (3 min) on any sustained gap, idle (10 min) later — so
+      // Time In App can end up less than Active Editing Time for the same stretch. That's the
+      // intended distinction between the two, not a bug (see the threshold constants above).
+      const idle = idleStreakSecondsRef.current >= ACTIVE_IDLE_THRESHOLD_SECONDS;
+      const idleForApp = idleStreakSecondsRef.current >= APP_IDLE_THRESHOLD_SECONDS;
 
-      workSessionService.heartbeat({ idle, elapsedSeconds: TICK_INTERVAL_SECONDS }).catch(() => undefined);
+      workSessionService.heartbeat({ idle, idleForApp, elapsedSeconds: TICK_INTERVAL_SECONDS }).catch(() => undefined);
 
       // Updates the dashboard's Active Editing Time immediately, in lockstep with this tick —
       // no network round trip and no polling wait, since this hook already knows the outcome of

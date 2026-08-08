@@ -6,12 +6,14 @@ import { WorkListSection } from "@/components/dashboard/WorkListSection";
 import { CloudStorageSection } from "@/components/dashboard/CloudStorageSection";
 import { BackgroundServicesSection } from "@/components/dashboard/BackgroundServicesSection";
 import { AssetsEditedModal } from "@/components/dashboard/AssetsEditedModal";
+import { TimeManagementModal } from "@/components/dashboard/TimeManagementModal";
 import { ErrorState } from "@/components/common/ErrorState";
 import { useDashboard } from "@/hooks/useDashboard";
 
 export default function DashboardPage() {
   const { snapshot, status, error } = useDashboard();
   const [assetsEditedOpen, setAssetsEditedOpen] = useState(false);
+  const [timeManagementOpen, setTimeManagementOpen] = useState(false);
 
   if (status === "error") {
     return (
@@ -29,7 +31,11 @@ export default function DashboardPage() {
         </div>
 
         <div className="shrink-0">
-          <StatisticsSection stats={snapshot?.stats ?? null} onAssetsEditedClick={() => setAssetsEditedOpen(true)} />
+          <StatisticsSection
+            stats={snapshot?.stats ?? null}
+            onAssetsEditedClick={() => setAssetsEditedOpen(true)}
+            onTimeManagementClick={() => setTimeManagementOpen(true)}
+          />
         </div>
 
         <div className="min-h-50 flex-1 grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -47,6 +53,7 @@ export default function DashboardPage() {
       </div>
 
       <AssetsEditedModal open={assetsEditedOpen} onOpenChange={setAssetsEditedOpen} />
+      <TimeManagementModal open={timeManagementOpen} onOpenChange={setTimeManagementOpen} />
     </DashboardLayout>
   );
 }

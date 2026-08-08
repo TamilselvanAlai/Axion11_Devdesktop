@@ -14,9 +14,11 @@ function DeltaBadge({ delta }: { delta: string }) {
 export function StatisticsSection({
   stats,
   onAssetsEditedClick,
+  onTimeManagementClick,
 }: {
   stats: DashboardStatCards | null;
   onAssetsEditedClick?: () => void;
+  onTimeManagementClick?: () => void;
 }) {
   // Ticks up every ~30s directly from useWorkSessionTracking's own tick loop (see
   // dashboardStore) — no polling or refetch involved, so this stays current between snapshot
@@ -54,7 +56,10 @@ export function StatisticsSection({
         </div>
       </Card>
 
-      <Card className="flex flex-col gap-2 p-3.5">
+      <Card
+        onClick={onTimeManagementClick}
+        className="flex flex-col gap-2 p-3.5 transition-colors hover:bg-muted/50 cursor-pointer"
+      >
         <div className="flex items-center justify-between">
           <Clock className="size-3.5 text-muted-foreground" />
           <DeltaBadge delta={stats.timeManagement.delta} />
@@ -63,7 +68,7 @@ export function StatisticsSection({
           <p className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Time Management</p>
           <p className="mt-0.5 text-xl font-semibold tracking-tight">{liveTimeManagementValue}</p>
           <p className="text-xs text-muted-foreground">
-            {stats.timeManagement.description} · {stats.timeManagement.allTimeValue} total in app
+            {stats.timeManagement.description} · {stats.timeManagement.timeInAppTodayValue} in app today
           </p>
         </div>
       </Card>
