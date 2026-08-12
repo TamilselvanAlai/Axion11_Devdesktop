@@ -12,9 +12,10 @@ interface AssetsScopeViewProps {
   scope: AssetScope;
   breadcrumbs: string[];
   countLabel: string;
+  subtitle?: string;
 }
 
-export function AssetsScopeView({ scope, breadcrumbs, countLabel }: AssetsScopeViewProps) {
+export function AssetsScopeView({ scope, breadcrumbs, countLabel, subtitle }: AssetsScopeViewProps) {
   const { assets, status } = useAssets(scope);
   const viewMode = useAssetStore((state) => state.viewMode);
   const selectedAssetId = useAssetStore((state) => state.selectedAssetId);
@@ -28,7 +29,7 @@ export function AssetsScopeView({ scope, breadcrumbs, countLabel }: AssetsScopeV
 
   return (
     <div className="flex flex-col gap-2">
-      <AssetsToolbar breadcrumbs={displayBreadcrumbs} count={assets.length} countLabel={countLabel} assets={assets} />
+      <AssetsToolbar breadcrumbs={displayBreadcrumbs} count={assets.length} countLabel={countLabel} assets={assets} subtitle={subtitle} />
       {status === "loading" && assets.length === 0 ? (
         <AssetsSkeleton viewMode={viewMode} />
       ) : viewMode === "grid" ? (

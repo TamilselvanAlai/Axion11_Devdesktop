@@ -136,7 +136,7 @@ function toAssetDetail(dto: ImageUploadApiDto): AssetDetail {
     ...toAsset(dto),
     filename: dto.fileName,
     sku: dto.imageTitle ?? "—",
-    batch: dto.batchId ? String(dto.batchId) : "—",
+    batch: dto.batchName ?? (dto.batchId ? String(dto.batchId) : "—"),
     etaAt: dto.createdAt ?? "—",
     modifiedAt: dto.createdAt ?? "—",
     checksumOk: dto.imageQualityQcCheck === "PASSED",

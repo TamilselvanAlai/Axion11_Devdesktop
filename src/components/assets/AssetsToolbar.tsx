@@ -34,6 +34,9 @@ interface AssetsToolbarProps {
    *  sub-batch (Upload Folder) under it. Undefined/null when `projectId` is itself a project. */
   parentProjectId?: string | null;
   assets?: Asset[];
+  /** Shown under the breadcrumb row — clarifies scope-wide views (Recent/Transfers) as being
+   *  the signed-in user's own activity, not a team-wide feed. */
+  subtitle?: string;
 }
 
 /** Folder-picker inputs (webkitdirectory) tag every file with its path relative to the picked
@@ -46,7 +49,7 @@ function folderFromFileList(fileList: FileList): DroppedFolder | null {
   return topFolder ? { name: topFolder, files } : null;
 }
 
-export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, parentProjectId, assets = [] }: AssetsToolbarProps) {
+export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, parentProjectId, assets = [], subtitle }: AssetsToolbarProps) {
   const { viewMode, setViewMode, setAssets, filters, sortKey, sortAsc, toggleSort } = useAssetStore();
   const [filterOpen, setFilterOpen] = useState(false);
   const [cloudBrowserOpen, setCloudBrowserOpen] = useState(false);
@@ -204,6 +207,8 @@ export function AssetsToolbar({ breadcrumbs, count, countLabel, projectId, paren
         />
       )}
     </div>
+
+      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
 
       {filterOpen && <AssetsFilterBar assets={assets} />}
     </div>

@@ -132,6 +132,7 @@ export interface ImageUploadApiDto {
   fileSize: number | null;
   projectId: number | null;
   batchId: number | null;
+  batchName: string | null;
   uploadedBy: string | null;
   createdAt: string | null;
   tags: ImageTagApiDto[];

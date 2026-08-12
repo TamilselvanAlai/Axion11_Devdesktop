@@ -148,7 +148,9 @@ export function AssetInfoPanel({ detail, onStatusChange }: { detail: AssetDetail
         downloadUrl: detail.downloadUrl,
         relativePath,
         assetId: detail.id,
-        batchId: detail.batch,
+        // Raw numeric batch id (not the display name in detail.batch) — useProjectView.ts
+        // reconstructs `b-${batchId}` from this to match it back to a project tree node.
+        batchId: detail.batchId.startsWith("b-") ? detail.batchId.slice(2) : detail.batchId,
         mountRoot: mountPoint,
       });
       setLocalInfo(result);
