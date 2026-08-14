@@ -50,7 +50,8 @@ export default function LoginPage() {
           </span>
           <div>
             <h1 className="text-lg font-semibold">
-              Axion <span className="font-semibold">VisualOps</span>
+              ImageMX
+               {/* <span className="font-semibold">VisualOps</span> */}
             </h1>
             <p className="text-xs text-muted-foreground">
               Intelligent Asset Management System
@@ -79,7 +80,7 @@ export default function LoginPage() {
         </div>
 
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          © 2026 Axion VisualOps · Enterprise Edition
+          © 2026 ImagwMX · Enterprise Edition
         </p>
       </div>
     </div>

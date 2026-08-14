@@ -136,10 +136,10 @@ export function AppSidebar() {
         </span>
         {!collapsed && (
           <>
-            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">Axion</span>
-            <span className="rounded-md border border-sidebar-border bg-white/5 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">ImageMX</span>
+            {/* <span className="rounded-md border border-sidebar-border bg-white/5 px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
               VisualOps
-            </span>
+            </span> */}
           </>
         )}
       </div>
