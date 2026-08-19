@@ -5,3 +5,4 @@ export * from "./auth.types";
 export * from "./dashboard.types";
 export * from "./asset.types";
 export * from "./cloudSync.types";
+export * from "./notifications.types";

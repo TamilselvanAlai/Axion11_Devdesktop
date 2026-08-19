@@ -1,32 +1,43 @@
-import { Bell, CheckCircle, Upload, Download, MessageSquare, Lock, GitBranch, Eye } from "lucide-react";
+import { Bell, MessageSquare, UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useDashboard } from "@/hooks/useDashboard";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useNotificationsStore } from "@/store/notificationsStore";
+import { useAssetStore } from "@/store";
+import { ROUTES } from "@/constants/routes";
+import { findAncestorIds } from "@/utils/assetPath";
 import { formatRelativeTime } from "@/utils/formatters";
-import type { ActivityItem, ActivityType } from "@/types";
+import type { NotificationItem, NotificationType } from "@/types";
 
-const NOTIFICATION_META: Record<ActivityType, { title: (item: ActivityItem) => string; icon: typeof CheckCircle; className: string }> = {
-  approved: { title: (i) => `${i.actor} approved`, icon: CheckCircle, className: "text-success" },
-  uploaded: { title: (i) => `${i.actor} uploaded`, icon: Upload, className: "text-info" },
-  commented: { title: (i) => `${i.actor} commented`, icon: MessageSquare, className: "text-slate-300" },
-  locked: { title: (i) => `${i.actor} locked`, icon: Lock, className: "text-warning" },
-  created: { title: (i) => `${i.actor} created`, icon: GitBranch, className: "text-violet-400" },
-  viewed: { title: (i) => `${i.actor} viewed`, icon: Eye, className: "text-cyan-400" },
-  downloaded: { title: (i) => `${i.actor} downloaded`, icon: Download, className: "text-pink-400" },
+const NOTIFICATION_META: Record<NotificationType, { title: (item: NotificationItem) => string; icon: typeof MessageSquare; className: string }> = {
+  commented: { title: (i) => `${i.actor} commented on ${i.fileName ?? "an asset"}`, icon: MessageSquare, className: "text-slate-300" },
+  assigned: { title: (i) => `${i.actor} assigned ${i.fileName ?? "an asset"} to you`, icon: UserPlus, className: "text-violet-400" },
 };
 
 export function NotificationsMenu() {
-  const { snapshot } = useDashboard();
+  const navigate = useNavigate();
+  const items = useNotifications();
   const { readIds, markAllRead } = useNotificationsStore();
-  const items = snapshot?.activity ?? [];
+  const projectTree = useAssetStore((s) => s.projectTree);
+  const selectAsset = useAssetStore((s) => s.selectAsset);
+  const expandAncestors = useAssetStore((s) => s.expandAncestors);
   const hasUnread = items.some((item) => !readIds.includes(item.id));
 
+  function goToAsset(item: NotificationItem) {
+    const target = item.batchId ?? item.projectId;
+    if (!target || !item.assetId) return;
+    const ancestorIds = findAncestorIds(projectTree, target);
+    if (ancestorIds) expandAncestors(ancestorIds);
+    navigate(`${ROUTES.projects}/${target}`);
+    selectAsset(item.assetId);
+  }
+
   return (
-    <DropdownMenu onOpenChange={(open) => open && markAllRead(items.map((i) => i.id))}>
+    <DropdownMenu onOpenChange={(open) => !open && markAllRead(items.map((i) => i.id))}>
       <DropdownMenuTrigger asChild>
         <button
           aria-label="Notifications"
@@ -55,15 +66,24 @@ export function NotificationsMenu() {
             items.map((item) => {
               const meta = NOTIFICATION_META[item.type];
               const Icon = meta.icon;
+              const unread = !readIds.includes(item.id);
               return (
-                <div key={item.id} className="flex items-start gap-2.5 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-muted">
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => goToAsset(item)}
+                  className="flex w-full items-start gap-2.5 border-b border-border px-3 py-2.5 text-left last:border-b-0 hover:bg-muted"
+                >
                   <Icon className={`mt-0.5 size-4 shrink-0 ${meta.className}`} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{meta.title(item)}</p>
                     <p className="truncate text-xs text-muted-foreground">{item.version}</p>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">{formatRelativeTime(item.timestamp)}</span>
-                </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="text-xs text-muted-foreground">{formatRelativeTime(item.timestamp)}</span>
+                    {unread && <span className="size-1.5 rounded-full bg-primary" />}
+                  </div>
+                </button>
               );
             })
           )}
