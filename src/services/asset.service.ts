@@ -9,7 +9,9 @@ import type {
   BatchApiDto,
   BatchWithUploadsApiDto,
   CommentApiDto,
+  AuditLogApiDto,
   ImageUploadApiDto,
+  ProjectApiDto,
   ProjectNode,
   ProjectSummary,
   ProjectTreeApiNode,
@@ -394,6 +396,25 @@ export const assetService = {
     return data.uploadStatus;
   },
 
+  /** Top-level project metadata (name, owner, team, created date) — powers the project info
+   *  panel when a top-level project row (not a batch) is single-clicked; see getBatchDetail for
+   *  the batch equivalent. */
+  async getProject(projectNodeId: string): Promise<ProjectApiDto> {
+    const numericId = projectNodeId.startsWith("p-") ? projectNodeId.slice(2) : projectNodeId;
+    const { data } = await apiClient.get<ProjectApiDto>(`/projects/${numericId}`);
+    return data;
+  },
+
+  /** Full batch detail plus every one of its uploads (every version, not just latest) — powers
+   *  the folder/batch info panel (name, project, assignee, due date, priority, workflow status)
+   *  and lets the panel compute approved/pending/rejected counts client-side the same way
+   *  toAssetStatus does for a single asset. */
+  async getBatchDetail(batchNodeId: string): Promise<BatchWithUploadsApiDto> {
+    const numericId = batchNodeId.startsWith("b-") ? batchNodeId.slice(2) : batchNodeId;
+    const { data } = await apiClient.get<BatchWithUploadsApiDto>(`/batches/${numericId}`);
+    return data;
+  },
+
   /** Takes the already-resolved tree node (not just its id) so the batch case can read its
    *  root project id straight off the tree — the tree already carries it (see ProjectNode.
    *  projectId) — instead of an extra `GET /batches/{id}` round trip before this folder's
@@ -530,6 +551,17 @@ export const assetService = {
     return (data.comments ?? []).map((c) => toAssetComment(c, assetId));
   },
 
+  /** Edits an existing comment's text in place. */
+  async editComment(commentId: string, text: string): Promise<void> {
+    await apiClient.put(`/assets/comments/${encodeURIComponent(commentId)}`, { text });
+  },
+
+  /** Deletes a comment. There's no author-only restriction on the backend (matches the web
+   *  app's behavior — any authenticated user with asset access can delete any comment). */
+  async deleteComment(commentId: string): Promise<void> {
+    await apiClient.delete(`/assets/comments/${encodeURIComponent(commentId)}`);
+  },
+
   /** Logs a download without transferring the file — for flows that fetch the file directly
    *  from its public storage URL (e.g. Open File) instead of through the backend. */
   async recordDownload(assetId: string): Promise<void> {
@@ -549,5 +581,33 @@ export const assetService = {
    *  fires one DELETE per id in parallel. */
   async deleteAssetsBulk(assetIds: string[]): Promise<void> {
     await Promise.all(assetIds.map((id) => apiClient.delete(`/uploads/${encodeURIComponent(id)}`)));
+  },
+
+  /** Real per-asset History — who/when uploaded, edited, commented, approved/rejected, most
+   *  recent first. `assetId` is any version's id (the backend resolves it directly, no chain
+   *  walk needed since AuditLog rows are written against a specific version's row id). */
+  async getAssetHistory(assetId: string): Promise<AuditLogApiDto[]> {
+    const { data } = await apiClient.get<AuditLogApiDto[]>(`/audit/asset/${encodeURIComponent(assetId)}`);
+    return data;
+  },
+
+  /** Real per-batch History — every event logged against any asset in this batch. */
+  async getBatchHistory(batchNodeId: string): Promise<AuditLogApiDto[]> {
+    const numericId = batchNodeId.startsWith("b-") ? batchNodeId.slice(2) : batchNodeId;
+    const { data } = await apiClient.get<AuditLogApiDto[]>(`/audit/batch/${numericId}`);
+    return data;
+  },
+
+  /** Real per-project History — every event logged anywhere under this project. */
+  async getProjectHistory(projectNodeId: string): Promise<AuditLogApiDto[]> {
+    const numericId = projectNodeId.startsWith("p-") ? projectNodeId.slice(2) : projectNodeId;
+    const { data } = await apiClient.get<AuditLogApiDto[]>(`/audit/project/${numericId}`);
+    return data;
+  },
+
+  /** Renames a single asset's file name. Reuses the batch-rename endpoint (shared with the web
+   *  app) with a single-entry payload — there is no dedicated single-file rename route. */
+  async renameAsset(assetId: string, newFileName: string): Promise<void> {
+    await apiClient.post("/uploads/batch-rename", [{ id: Number(assetId), newFileName }]);
   },
 };

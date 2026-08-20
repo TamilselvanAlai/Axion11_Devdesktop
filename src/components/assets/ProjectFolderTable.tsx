@@ -23,11 +23,27 @@ function formatDate(iso: string) {
 
 export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
   const navigate = useNavigate();
-  const { projectTree, expandAncestors, uploadingBatches, multiSelectedIds, toggleMultiSelect } = useAssetStore();
+  const {
+    projectTree,
+    expandAncestors,
+    uploadingBatches,
+    multiSelectedIds,
+    toggleMultiSelect,
+    selectedFolderId,
+    selectFolder,
+  } = useAssetStore();
 
   function handleCheckboxClick(e: React.MouseEvent, folderId: string) {
     e.stopPropagation();
     toggleMultiSelect(folderId);
+  }
+
+  function openFolder(folderId: string) {
+    // Reveal this folder in the sidebar tree the same way clicking an asset does — expand
+    // every ancestor so the newly-active node isn't hidden under a collapsed parent, instead of
+    // relying on the route param to highlight it.
+    expandAncestors(findAncestorIds(projectTree, folderId) ?? [folderId]);
+    navigate(`${ROUTES.projects}/${folderId}`);
   }
 
   return (
@@ -60,15 +76,10 @@ export function ProjectFolderTable({ folders }: { folders: ProjectSummary[] }) {
             key={folder.id}
             className={cn(
               "animate-in fade-in duration-300 cursor-pointer",
-              multiSelectedIds.has(folder.id) && "bg-muted"
+              (multiSelectedIds.has(folder.id) || selectedFolderId === folder.id) && "bg-muted"
             )}
-            onClick={() => {
-              // Reveal this folder in the sidebar tree the same way clicking an asset does —
-              // expand every ancestor so the newly-active node isn't hidden under a collapsed
-              // parent, instead of relying on the route param to highlight it.
-              expandAncestors(findAncestorIds(projectTree, folder.id) ?? [folder.id]);
-              navigate(`${ROUTES.projects}/${folder.id}`);
-            }}
+            onClick={() => selectFolder(folder.id)}
+            onDoubleClick={() => openFolder(folder.id)}
           >
             <TableCell onClick={(e) => handleCheckboxClick(e, folder.id)}>
               <Checkbox checked={multiSelectedIds.has(folder.id)} aria-label={`Select ${folder.name}`} />

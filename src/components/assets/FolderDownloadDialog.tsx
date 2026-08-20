@@ -95,10 +95,19 @@ export function FolderDownloadDialog({ open, onOpenChange, folderIds, folderLabe
   // behind its overlay) for what can be a long, many-file bulk download — the toast this starts
   // carries all further progress instead, and keeps updating in place regardless of this dialog
   // having since closed/unmounted, since it isn't tied to this component's lifecycle at all.
-  function handleDownload() {
+  async function handleDownload() {
+    // A batch download must ask where to save, unlike a single-file download (which silently
+    // goes to the Mount Settings folder) — see localSyncService.pickFolder. On the web build
+    // (no filesystem access) this stays null and the existing per-file window.open behavior
+    // inside downloadToMount takes over instead.
+    let destination: string | null = mountPoint;
+    if (localSyncService.isTauri()) {
+      destination = await localSyncService.pickFolder(`Choose a folder to save ${folderLabel} to`);
+      if (!destination) return; // user cancelled the picker — leave the dialog open
+    }
     const toastId = toast.loading("Preparing download…");
     onOpenChange(false);
-    runDownload(toastId, folderIds, selected, projectTree, mountPoint);
+    runDownload(toastId, folderIds, selected, projectTree, destination);
   }
 
   return (
@@ -149,7 +158,9 @@ async function runDownload(
   folderIds: string[],
   selected: Set<Category>,
   projectTree: Parameters<typeof assetService.getAllAssetsInFolders>[1],
-  mountPoint: string | null
+  /** Either the folder the user just picked via pickFolder (desktop), or the Mount Settings
+   *  default when the picker was skipped (web build). */
+  destination: string | null
 ) {
   try {
     const allAssets = await assetService.getAllAssetsInFolders(folderIds, projectTree);
@@ -164,13 +175,14 @@ async function runDownload(
     let completed = 0;
     let failed = 0;
     toast.loading(`Downloading 0 of ${toDownload.length}…`, { id: toastId });
+    localSyncService.notifyDownload("Download started", `Downloading ${toDownload.length} files…`);
     // Sequential, not parallel — each one is a real file write, and this can be hundreds of
     // files across a whole folder; racing them would also make the progress count meaningless.
     for (const a of toDownload) {
       try {
         const ancestors = (a.batchId && findAncestorPath(projectTree, a.batchId)) || [];
         const relativePath = [...ancestors, versionFolderName(a), a.name].join("/");
-        await localSyncService.downloadToMount(a.downloadUrl!, relativePath, mountPoint);
+        await localSyncService.downloadToMount(a.downloadUrl!, relativePath, destination);
         completed++;
       } catch {
         failed++;
@@ -180,10 +192,21 @@ async function runDownload(
 
     if (failed === 0) {
       toast.success(`Downloaded ${completed} file${completed === 1 ? "" : "s"}.`, { id: toastId });
+      localSyncService.notifyDownload(
+        "Download complete",
+        `Downloaded ${completed} file${completed === 1 ? "" : "s"}.`,
+        destination ?? undefined
+      );
     } else if (completed === 0) {
       toast.error(`Failed to download ${failed} file${failed === 1 ? "" : "s"}.`, { id: toastId });
+      localSyncService.notifyDownload("Download failed", `Failed to download ${failed} file${failed === 1 ? "" : "s"}.`);
     } else {
       toast.warning(`Downloaded ${completed} of ${toDownload.length} files · ${failed} failed`, { id: toastId });
+      localSyncService.notifyDownload(
+        "Download finished with errors",
+        `Downloaded ${completed} of ${toDownload.length} files · ${failed} failed`,
+        destination ?? undefined
+      );
     }
   } catch (err) {
     toast.error(err instanceof Error ? err.message : "Failed to gather assets to download.", { id: toastId });

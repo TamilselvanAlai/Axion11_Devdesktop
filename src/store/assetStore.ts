@@ -19,6 +19,11 @@ interface AssetStoreState {
   /** The batch/folder node id of the currently selected asset, so the sidebar tree can
    *  highlight it even when it's not the node the current route is scoped to. */
   selectedAssetBatchId: string | null;
+  /** A single-clicked (not entered) folder row in ProjectFolderTable — shows that folder's own
+   *  details in the right panel, mirroring selectedAssetId for assets. Double-clicking (or
+   *  clicking a folder while assets are showing) navigates into it instead; see FolderInfoPanel. */
+  selectedFolderId: string | null;
+  selectFolder: (id: string | null) => void;
   multiSelectedIds: Set<string>;
   /** Bumped whenever any asset finishes local-sync (see useWorkSessionTracking) — SyncStatusIcon
    *  depends on this to re-check its file's local presence without polling. */
@@ -98,6 +103,8 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   expandedIds: new Set(["ss25-campaign", "aw25-campaign"]),
   selectedAssetId: null,
   selectedAssetBatchId: null,
+  selectedFolderId: null,
+  selectFolder: (selectedFolderId) => set({ selectedFolderId, selectedAssetId: null }),
   multiSelectedIds: new Set(),
   localSyncTick: 0,
   bumpLocalSyncTick: () => set((state) => ({ localSyncTick: state.localSyncTick + 1 })),
@@ -143,7 +150,13 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
   setFolderSummary: (folderSummary) => set({ folderSummary, status: "success" }),
   setStatus: (status) => set({ status }),
   resetForNavigation: () =>
-    set({ status: "loading", selectedAssetId: null, selectedAssetBatchId: null, multiSelectedIds: new Set() }),
+    set({
+      status: "loading",
+      selectedAssetId: null,
+      selectedAssetBatchId: null,
+      selectedFolderId: null,
+      multiSelectedIds: new Set(),
+    }),
   setViewMode: (viewMode) => set({ viewMode }),
   toggleSort: (key) =>
     set((state) => ({
@@ -161,13 +174,14 @@ export const useAssetStore = create<AssetStoreState>((set, get) => ({
     }),
   expandAncestors: (ids) =>
     set((state) => ({ expandedIds: new Set([...state.expandedIds, ...ids]) })),
-  selectAsset: (selectedAssetId) => set({ selectedAssetId }),
+  selectAsset: (selectedAssetId) => set({ selectedAssetId, selectedFolderId: null }),
   selectAssetAndReveal: (asset) =>
     set((state) => {
       const ancestorIds = asset.batchId ? findAncestorIds(state.projectTree, asset.batchId) : null;
       return {
         selectedAssetId: asset.id,
         selectedAssetBatchId: asset.batchId,
+        selectedFolderId: null,
         expandedIds: ancestorIds ? new Set([...state.expandedIds, ...ancestorIds]) : state.expandedIds,
       };
     }),

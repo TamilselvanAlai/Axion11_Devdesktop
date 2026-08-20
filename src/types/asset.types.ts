@@ -82,6 +82,30 @@ export interface ProjectSummary {
   dueDate: string;
 }
 
+export interface AuditLogApiDto {
+  id: number;
+  eventType: string;
+  projectId: number | null;
+  batchId: number | null;
+  assetId: number | null;
+  userId: number | null;
+  actorName: string | null;
+  details: string | null;
+  createdAt: string;
+  assetVersion: number | null;
+  assetFileName: string | null;
+}
+
+export interface ProjectApiDto {
+  id: number;
+  name: string;
+  description: string | null;
+  ownerName: string | null;
+  ownerEmail: string | null;
+  teamName: string | null;
+  createdAt: string | null;
+}
+
 export interface AssetDetail extends Asset {
   filename: string;
   sku: string;

@@ -7,6 +7,7 @@ import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetUploadingGridTile, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
+import { AssetRowContextMenu } from "@/components/assets/AssetRowContextMenu";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
 import { formatRelativeTime, getInitials } from "@/utils/formatters";
@@ -107,8 +108,8 @@ export function AssetsGrid({
       {rows.map((asset, index) => {
         const checked = multiSelectedIds.has(asset.id);
         return (
+        <AssetRowContextMenu key={asset.id} asset={asset}>
         <Card
-          key={asset.id}
           data-asset-row={asset.id}
           className={cn(
             "group cursor-pointer gap-0 overflow-hidden p-0 ring-1 ring-foreground/10 transition-colors",
@@ -165,6 +166,7 @@ export function AssetsGrid({
             </div>
           </div>
         </Card>
+        </AssetRowContextMenu>
         );
       })}
 

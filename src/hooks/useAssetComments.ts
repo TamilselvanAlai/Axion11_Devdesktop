@@ -33,5 +33,19 @@ export function useAssetComments(assetId: string | null) {
     setComments(refreshed);
   }
 
-  return { comments, status, addComment };
+  /** Editing and deleting act on a single comment, so update just that entry locally rather
+   *  than refetching/replacing the whole list (unlike addComment, whose endpoint already
+   *  returns the full refreshed list). */
+  async function editComment(commentId: string, message: string) {
+    if (!message.trim()) return;
+    await assetService.editComment(commentId, message.trim());
+    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, message: message.trim() } : c)));
+  }
+
+  async function deleteComment(commentId: string) {
+    await assetService.deleteComment(commentId);
+    setComments((prev) => prev.filter((c) => c.id !== commentId));
+  }
+
+  return { comments, status, addComment, editComment, deleteComment };
 }

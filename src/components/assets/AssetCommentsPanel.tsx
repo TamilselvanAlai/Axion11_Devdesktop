@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { Send, PenTool } from "lucide-react";
+import { toast } from "sonner";
+import { Send, PenTool, Reply as ReplyIcon, Pencil, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAssetComments } from "@/hooks/useAssetComments";
 import { formatRelativeTime } from "@/utils/formatters";
 import { cn } from "@/lib/utils";
@@ -22,9 +33,14 @@ export function AssetCommentsPanel({
   onAnnotationSubmitted,
   onActiveAnnotationChange,
 }: AssetCommentsPanelProps) {
-  const { comments, status, addComment } = useAssetComments(assetId);
+  const { comments, status, addComment, editComment, deleteComment } = useAssetComments(assetId);
   const [draft, setDraft] = useState("");
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingDraft, setEditingDraft] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   async function handleSubmit() {
     if (!draft.trim()) return;
@@ -43,6 +59,55 @@ export function AssetCommentsPanel({
     });
   }
 
+  function startReply(commentId: string) {
+    setEditingId(null);
+    setReplyingToId(commentId);
+    setReplyDraft("");
+  }
+
+  // There's no threaded-reply concept on the backend — a reply is just a regular comment, same
+  // as the web app's implementation (see FullScreenAssetViewer's handleAddComment: it posts to
+  // the same /comments endpoint regardless of replyingTo, and the server's response is always a
+  // flat list). Kept as a distinct "Reply" affordance in the UI since that's what was asked for
+  // and what the web app shows, even though it doesn't nest server-side.
+  async function submitReply() {
+    if (!replyDraft.trim()) return;
+    const text = replyDraft;
+    setReplyDraft("");
+    setReplyingToId(null);
+    await addComment(text);
+  }
+
+  function startEdit(comment: AssetComment) {
+    setReplyingToId(null);
+    setEditingId(comment.id);
+    setEditingDraft(comment.message);
+  }
+
+  async function submitEdit(commentId: string) {
+    if (!editingDraft.trim()) {
+      setEditingId(null);
+      return;
+    }
+    try {
+      await editComment(commentId, editingDraft);
+      setEditingId(null);
+    } catch {
+      toast.error("Failed to update comment.");
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deletingId) return;
+    const id = deletingId;
+    setDeletingId(null);
+    try {
+      await deleteComment(id);
+    } catch {
+      toast.error("Failed to delete comment.");
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 space-y-4 overflow-y-auto p-4">
@@ -56,35 +121,115 @@ export function AssetCommentsPanel({
               <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
                 {comment.author.initials}
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2">
                   <span className="text-sm font-medium">{comment.author.name}</span>
                   <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
                 </div>
-                <p
-                  onClick={() => handleCommentClick(comment)}
-                  title={
-                    comment.annotationImageUrl
-                      ? activeCommentId === comment.id
-                        ? "Click to hide marked area"
-                        : "Click to view marked area"
-                      : undefined
-                  }
-                  className={cn(
-                    "text-xs leading-relaxed text-foreground/70",
-                    comment.annotationImageUrl && "cursor-pointer transition-colors hover:text-foreground"
-                  )}
-                >
-                  {comment.annotationImageUrl && (
-                    <PenTool
-                      className={cn(
-                        "mr-1 inline size-2.5",
-                        activeCommentId === comment.id ? "text-primary" : "text-muted-foreground"
-                      )}
+
+                {editingId === comment.id ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={editingDraft}
+                      onChange={(e) => setEditingDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") submitEdit(comment.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      autoFocus
+                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-white/20"
                     />
-                  )}
-                  {comment.message}
-                </p>
+                    <button
+                      type="button"
+                      onClick={() => submitEdit(comment.id)}
+                      className="shrink-0 rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground hover:bg-accent"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-white/10"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p
+                    onClick={() => handleCommentClick(comment)}
+                    title={
+                      comment.annotationImageUrl
+                        ? activeCommentId === comment.id
+                          ? "Click to hide marked area"
+                          : "Click to view marked area"
+                        : undefined
+                    }
+                    className={cn(
+                      "text-xs leading-relaxed text-foreground/70",
+                      comment.annotationImageUrl && "cursor-pointer transition-colors hover:text-foreground"
+                    )}
+                  >
+                    {comment.annotationImageUrl && (
+                      <PenTool
+                        className={cn(
+                          "mr-1 inline size-2.5",
+                          activeCommentId === comment.id ? "text-primary" : "text-muted-foreground"
+                        )}
+                      />
+                    )}
+                    {comment.message}
+                  </p>
+                )}
+
+                {editingId !== comment.id && (
+                  <div className="mt-1 flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => startReply(comment.id)}
+                      className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                    >
+                      <ReplyIcon className="size-2.5" /> Reply
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => startEdit(comment)}
+                      className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil className="size-2.5" /> Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeletingId(comment.id)}
+                      className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-danger"
+                    >
+                      <Trash2 className="size-2.5" /> Delete
+                    </button>
+                  </div>
+                )}
+
+                {replyingToId === comment.id && (
+                  <div className="mt-2 flex items-center gap-1.5 border-l-2 border-primary/40 pl-2">
+                    <input
+                      type="text"
+                      value={replyDraft}
+                      onChange={(e) => setReplyDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && submitReply()}
+                      placeholder="Write a reply…"
+                      autoFocus
+                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-white/20"
+                    />
+                    <button
+                      type="button"
+                      aria-label="Send reply"
+                      onClick={submitReply}
+                      disabled={!replyDraft.trim()}
+                      className="shrink-0 text-primary transition-colors hover:text-accent disabled:opacity-50"
+                    >
+                      <Send className="size-3" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -112,6 +257,19 @@ export function AssetCommentsPanel({
           </button>
         </div>
       </div>
+
+      <AlertDialog open={deletingId !== null} onOpenChange={(open) => !open && setDeletingId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete comment?</AlertDialogTitle>
+            <AlertDialogDescription>This can't be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

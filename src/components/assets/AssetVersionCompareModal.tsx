@@ -173,7 +173,7 @@ function VersionSelect({
         .filter((v) => v.id === value || v.id !== exclude)
         .map((v) => (
           <option key={v.id} value={v.id}>
-            {v.version} · {v.name}
+            {v.version}
             {v.established && v.version !== "VE" ? " · VE" : ""}
           </option>
         ))}

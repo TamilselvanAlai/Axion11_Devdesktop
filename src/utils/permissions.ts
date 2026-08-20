@@ -21,3 +21,14 @@ export function canBulkManageAssets(user: User | null | undefined): boolean {
   if (user.role === "admin") return true;
   return user.rawRole.toUpperCase().includes("PROJECT_MANAGER");
 }
+
+/** Renaming files is restricted to Super Admin ("Master Client" in rbac.md) and Admin
+ *  ("Secondary Admin"). This must be an exact rawRole match, not the coarse "admin" role
+ *  bucket — that bucket also absorbs VENDOR_ADMIN (substring match on "ADMIN" in
+ *  auth.service.ts's mapRole), which does not have FILES_RENAME permission in the backend
+ *  matrix. */
+export function canRenameAsset(user: User | null | undefined): boolean {
+  if (!user) return false;
+  const rawRole = user.rawRole.toUpperCase();
+  return rawRole === "SUPER_ADMIN" || rawRole === "ADMIN";
+}

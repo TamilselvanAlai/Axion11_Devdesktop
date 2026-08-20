@@ -64,6 +64,82 @@ async function revealInFileManager(path: string): Promise<void> {
   await revealItemInDir(path);
 }
 
+/** Opens a folder itself in the OS file explorer — used for a batch download's destination
+ *  folder (a directory the user just picked), as opposed to revealInFileManager, which selects
+ *  a single file within its parent folder. */
+async function openFolderInFileManager(path: string): Promise<void> {
+  if (!isTauri() || !path) return;
+  const { openPath } = await import("@tauri-apps/plugin-opener");
+  await openPath(path);
+}
+
+/** Prompts the user to pick a folder via the native OS picker (Explorer/Finder) — used by batch
+ *  downloads, which (unlike a single-file context-menu download) must ask where to save rather
+ *  than silently defaulting to the Mount Settings folder. Returns null on the web build (no
+ *  filesystem access to pick into) or if the user cancels the picker. */
+async function pickFolder(title?: string): Promise<string | null> {
+  if (!isTauri()) return null;
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const result = await open({ directory: true, multiple: false, title: title ?? "Choose a folder to save to" });
+  return typeof result === "string" ? result : null;
+}
+
+const DOWNLOAD_ACTION_TYPE = "axion-download-complete";
+const OPEN_FOLDER_ACTION_ID = "open-folder";
+let notificationActionsReady: Promise<void> | null = null;
+
+/** Registers the "Open Folder" action button once per app session and wires a single listener
+ *  that reveals whichever path the clicked notification carries in `extra.revealPath` — every
+ *  completed-download notification reuses this one action type/listener rather than each
+ *  registering (and leaking) its own. Best-effort: action buttons on notifications are genuinely
+ *  platform-dependent (reliable on Windows/macOS, daemon-dependent on Linux), so this never
+ *  throws — a download's own success toast (with its own working reveal button) is still shown
+ *  regardless of whether the OS notification's action fires. */
+async function ensureNotificationActionsRegistered(): Promise<void> {
+  if (!notificationActionsReady) {
+    notificationActionsReady = (async () => {
+      const { registerActionTypes, onAction } = await import("@tauri-apps/plugin-notification");
+      await registerActionTypes([
+        { id: DOWNLOAD_ACTION_TYPE, actions: [{ id: OPEN_FOLDER_ACTION_ID, title: "Open Folder" }] },
+      ]);
+      await onAction((notification) => {
+        const actionId = (notification as { actionId?: string }).actionId;
+        // "tauri" is the reserved actionId the plugin reports for a plain click on the
+        // notification body (no action button pressed) — treated the same as the explicit
+        // button so clicking the notification itself also opens the folder where supported.
+        if (actionId !== OPEN_FOLDER_ACTION_ID && actionId !== "tauri") return;
+        const revealPath = notification.extra?.revealPath;
+        if (typeof revealPath === "string") openFolderInFileManager(revealPath);
+      });
+    })().catch(() => undefined);
+  }
+  return notificationActionsReady;
+}
+
+/** Sends an OS-level (system tray/notification-center) notification for a batch download's
+ *  progress or completion — distinct from the in-app Sonner toast, which keeps working
+ *  regardless of OS notification permission/support. `revealPath`, when given, attaches an
+ *  "Open Folder" action to the notification (see ensureNotificationActionsRegistered). No-ops
+ *  on the web build or if the user never grants OS notification permission. */
+async function notifyDownload(title: string, body: string, revealPath?: string): Promise<void> {
+  if (!isTauri()) return;
+  try {
+    const { isPermissionGranted, requestPermission, sendNotification } = await import("@tauri-apps/plugin-notification");
+    let granted = await isPermissionGranted();
+    if (!granted) granted = (await requestPermission()) === "granted";
+    if (!granted) return;
+    if (revealPath) await ensureNotificationActionsRegistered();
+    sendNotification({
+      title,
+      body,
+      ...(revealPath ? { actionTypeId: DOWNLOAD_ACTION_TYPE, extra: { revealPath } } : {}),
+    });
+  } catch {
+    // OS notifications are a nice-to-have alongside the toast — never let a failure here
+    // (permission plumbing, an unsupported platform) surface as a download error.
+  }
+}
+
 /** Seconds since the last physical mouse/keyboard input, system-wide — not scoped to this app's
  *  own window, since the user's real activity typically happens inside a 3rd-party editor
  *  (Photoshop, etc.), a separate OS process this app's WebView can't see input events from.
@@ -78,9 +154,12 @@ async function getSystemIdleSeconds(): Promise<number> {
 export const localSyncService = {
   isTauri,
   revealInFileManager,
+  openFolderInFileManager,
   openExternalUrl,
   downloadToMount,
   getSystemIdleSeconds,
+  pickFolder,
+  notifyDownload,
 
   /** Downloads the asset locally (mirroring the project tree), opens it, and watches it —
    *  any save is automatically re-uploaded as a new version of the same asset.

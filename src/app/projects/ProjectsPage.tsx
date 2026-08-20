@@ -4,6 +4,7 @@ import { RightPanel } from "@/components/shared/RightPanel";
 import { ProjectFolderTable } from "@/components/assets/ProjectFolderTable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { assetService } from "@/services/asset.service";
+import { useAssetStore } from "@/store";
 import type { ProjectSummary } from "@/types";
 
 function FolderTableSkeleton() {
@@ -20,6 +21,7 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const setFolderSummary = useAssetStore((s) => s.setFolderSummary);
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +29,14 @@ export default function ProjectsPage() {
     assetService
       .getProjectsList()
       .then((data) => {
-        if (!cancelled) setProjects(data);
+        if (cancelled) return;
+        setProjects(data);
+        // RightPanel cross-references the store's folderSummary to tell a checked/clicked
+        // folder id apart from an asset id (see its singleSelectedIsFolder) — this list is kept
+        // in local state above for the page's own render, but must also land in the store or a
+        // checkbox/row selection here would show a blank info panel exactly like the in-project
+        // batch list did before it synced the same way.
+        setFolderSummary(data);
       })
       .catch((err) => {
         if (!cancelled) setError(err?.message ?? "Failed to load projects.");

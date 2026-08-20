@@ -16,6 +16,7 @@ import { SyncStatusIcon } from "@/components/assets/SyncStatusIcon";
 import { AssetThumbnail } from "@/components/assets/AssetThumbnail";
 import { AssetUploadingTableRow, type AssetUploadPhase } from "@/components/assets/AssetsSkeleton";
 import { AssetVersionCompareModal } from "@/components/assets/AssetVersionCompareModal";
+import { AssetRowContextMenu } from "@/components/assets/AssetRowContextMenu";
 import { EstablishedBadge } from "@/components/assets/EstablishedBadge";
 import { cn } from "@/lib/utils";
 import { useAssetStore } from "@/store";
@@ -173,8 +174,8 @@ export function AssetsTable({
           <AssetUploadingTableRow key={`uploading-${i}-${name}`} name={name} phase={uploadingPhase} />
         ))}
         {rows.map((asset, index) => (
+          <AssetRowContextMenu key={asset.id} asset={asset}>
           <TableRow
-            key={asset.id}
             data-asset-row={asset.id}
             className={cn(
               "group cursor-pointer animate-in fade-in duration-300",
@@ -216,6 +217,7 @@ export function AssetsTable({
             </TableCell>
             <TableCell className="text-muted-foreground">{formatDateTime(asset.updatedAt)}</TableCell>
           </TableRow>
+          </AssetRowContextMenu>
         ))}
       </TableBody>
     </Table>
