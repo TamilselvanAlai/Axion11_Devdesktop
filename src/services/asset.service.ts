@@ -154,6 +154,8 @@ function toAssetComment(dto: CommentApiDto, assetId: string): AssetComment {
     message: dto.text,
     createdAt: dto.createdAt,
     annotationImageUrl: dto.annotationImageUrl ?? null,
+    resolved: dto.resolved,
+    parentCommentId: dto.parentCommentId != null ? String(dto.parentCommentId) : null,
   };
 }
 
@@ -531,13 +533,15 @@ export const assetService = {
   },
 
   /** Posts a comment, optionally with a pen-tool annotation baked into a transparent PNG
-   *  (image) plus its mark center (x/y, natural-image pixels). Returns the asset's full,
-   *  now-current comment list — the annotation-capable endpoint replies with the whole
-   *  asset detail rather than just the new comment. */
+   *  (image) plus its mark center (x/y, natural-image pixels), and optionally as a reply to
+   *  another comment (parentCommentId). Returns the asset's full, now-current comment list —
+   *  the annotation-capable endpoint replies with the whole asset detail rather than just the
+   *  new comment. */
   async addComment(
     assetId: string,
     message: string,
-    annotation?: { image: string; x: number; y: number }
+    annotation?: { image: string; x: number; y: number },
+    parentCommentId?: string
   ): Promise<AssetComment[]> {
     const { data } = await apiClient.post<AssetDetailWithCommentsApiDto>(
       `/assets/${encodeURIComponent(assetId)}/comments`,
@@ -546,6 +550,7 @@ export const assetService = {
         annotationImage: annotation?.image,
         markX: annotation?.x,
         markY: annotation?.y,
+        parentCommentId: parentCommentId ? Number(parentCommentId) : undefined,
       }
     );
     return (data.comments ?? []).map((c) => toAssetComment(c, assetId));
@@ -554,6 +559,11 @@ export const assetService = {
   /** Edits an existing comment's text in place. */
   async editComment(commentId: string, text: string): Promise<void> {
     await apiClient.put(`/assets/comments/${encodeURIComponent(commentId)}`, { text });
+  },
+
+  /** Toggles a comment's (or reply's) "Done" checkmark. */
+  async setCommentResolved(commentId: string, resolved: boolean): Promise<void> {
+    await apiClient.patch(`/assets/comments/${encodeURIComponent(commentId)}/resolve`, { resolved });
   },
 
   /** Deletes a comment. There's no author-only restriction on the backend (matches the web

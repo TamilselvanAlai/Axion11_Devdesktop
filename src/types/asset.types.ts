@@ -125,6 +125,10 @@ export interface AssetComment {
   /** Baked-strokes PNG (transparent bg) for the marked area, if this comment was posted with
    *  a pen-tool annotation — overlays exactly on top of the base image when the comment is clicked. */
   annotationImageUrl: string | null;
+  /** The comment's own "Done" checkmark. */
+  resolved: boolean;
+  /** The comment this one is a reply to, or null for a top-level comment. */
+  parentCommentId: string | null;
 }
 
 export type AssetViewMode = "list" | "grid";
@@ -199,6 +203,7 @@ export interface CommentApiDto {
   createdAt: string;
   resolved: boolean;
   annotationImageUrl?: string | null;
+  parentCommentId?: number | null;
 }
 
 /** Response of POST /assets/{id}/comments — the whole asset detail, comments list included. */

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Send, PenTool, Reply as ReplyIcon, Pencil, Trash2 } from "lucide-react";
+import { Send, PenTool, Reply as ReplyIcon, Pencil, Trash2, Check, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
@@ -27,13 +27,33 @@ interface AssetCommentsPanelProps {
   onActiveAnnotationChange?: (url: string | null) => void;
 }
 
+interface CommentThread {
+  root: AssetComment;
+  replies: AssetComment[];
+}
+
+/** Groups the flat comment list into one thread per top-level comment (parentCommentId null),
+ *  each carrying its own replies in order — this is what lets a comment and everything replying
+ *  to it render as a single card instead of every reply reading as its own unrelated comment. */
+function groupIntoThreads(comments: AssetComment[]): CommentThread[] {
+  const roots = comments.filter((c) => !c.parentCommentId);
+  const repliesByParent = new Map<string, AssetComment[]>();
+  for (const c of comments) {
+    if (!c.parentCommentId) continue;
+    const list = repliesByParent.get(c.parentCommentId) ?? [];
+    list.push(c);
+    repliesByParent.set(c.parentCommentId, list);
+  }
+  return roots.map((root) => ({ root, replies: repliesByParent.get(root.id) ?? [] }));
+}
+
 export function AssetCommentsPanel({
   assetId,
   getAnnotation,
   onAnnotationSubmitted,
   onActiveAnnotationChange,
 }: AssetCommentsPanelProps) {
-  const { comments, status, addComment, editComment, deleteComment } = useAssetComments(assetId);
+  const { comments, status, addComment, editComment, deleteComment, toggleResolved } = useAssetComments(assetId);
   const [draft, setDraft] = useState("");
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
@@ -41,6 +61,8 @@ export function AssetCommentsPanel({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingDraft, setEditingDraft] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const threads = groupIntoThreads(comments);
 
   async function handleSubmit() {
     if (!draft.trim()) return;
@@ -59,23 +81,22 @@ export function AssetCommentsPanel({
     });
   }
 
-  function startReply(commentId: string) {
+  function startReply(rootId: string) {
     setEditingId(null);
-    setReplyingToId(commentId);
+    setReplyingToId(rootId);
     setReplyDraft("");
   }
 
-  // There's no threaded-reply concept on the backend — a reply is just a regular comment, same
-  // as the web app's implementation (see FullScreenAssetViewer's handleAddComment: it posts to
-  // the same /comments endpoint regardless of replyingTo, and the server's response is always a
-  // flat list). Kept as a distinct "Reply" affordance in the UI since that's what was asked for
-  // and what the web app shows, even though it doesn't nest server-side.
-  async function submitReply() {
+  // Replies to threadRootId, not to whatever comment the Reply button was clicked on — a reply
+  // is always a direct child of the thread's top-level comment (one level of nesting, matching
+  // how it renders), so replying from within an already-open thread still attaches to the same
+  // root rather than trying to build a deeper chain the UI doesn't display.
+  async function submitReply(threadRootId: string) {
     if (!replyDraft.trim()) return;
     const text = replyDraft;
     setReplyDraft("");
     setReplyingToId(null);
-    await addComment(text);
+    await addComment(text, undefined, threadRootId);
   }
 
   function startEdit(comment: AssetComment) {
@@ -108,129 +129,180 @@ export function AssetCommentsPanel({
     }
   }
 
+  async function handleToggleResolved(comment: AssetComment) {
+    try {
+      await toggleResolved(comment.id, !comment.resolved);
+    } catch {
+      toast.error("Failed to update comment.");
+    }
+  }
+
+  function CommentRow({ comment }: { comment: AssetComment }) {
+    return (
+      <div className="flex gap-2.5">
+        <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
+          {comment.author.initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="mb-1">
+            <span className="text-sm font-medium">{comment.author.name}</span>
+            <div className="mt-0.5 flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
+              {comment.resolved && (
+                <span className="flex items-center gap-0.5 rounded-full bg-success/15 px-1.5 py-0.5 text-[9px] font-semibold text-success">
+                  <Check className="size-2.5" /> Done
+                </span>
+              )}
+            </div>
+          </div>
+
+          {editingId === comment.id ? (
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={editingDraft}
+                onChange={(e) => setEditingDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") submitEdit(comment.id);
+                  if (e.key === "Escape") setEditingId(null);
+                }}
+                autoFocus
+                className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-white/20"
+              />
+              <button
+                type="button"
+                onClick={() => submitEdit(comment.id)}
+                aria-label="Save"
+                title="Save"
+                className="flex size-6 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground hover:bg-accent"
+              >
+                <Check className="size-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                aria-label="Cancel"
+                title="Cancel"
+                className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-white/10"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ) : (
+            <p
+              onClick={() => handleCommentClick(comment)}
+              title={
+                comment.annotationImageUrl
+                  ? activeCommentId === comment.id
+                    ? "Click to hide marked area"
+                    : "Click to view marked area"
+                  : undefined
+              }
+              className={cn(
+                "text-xs leading-relaxed text-foreground/70",
+                comment.resolved && "line-through opacity-60",
+                comment.annotationImageUrl && "cursor-pointer transition-colors hover:text-foreground"
+              )}
+            >
+              {comment.annotationImageUrl && (
+                <PenTool
+                  className={cn(
+                    "mr-1 inline size-2.5",
+                    activeCommentId === comment.id ? "text-primary" : "text-muted-foreground"
+                  )}
+                />
+              )}
+              {comment.message}
+            </p>
+          )}
+
+          {editingId !== comment.id && (
+            <div className="mt-1 flex items-center gap-3">
+              {!comment.parentCommentId && (
+                <button
+                  type="button"
+                  onClick={() => startReply(comment.id)}
+                  className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
+                >
+                  <ReplyIcon className="size-2.5" /> Reply
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleToggleResolved(comment)}
+                className={cn(
+                  "flex items-center gap-1 text-[10px] font-medium",
+                  comment.resolved ? "text-success" : "text-muted-foreground hover:text-success"
+                )}
+              >
+                <Check className="size-2.5" /> {comment.resolved ? "Done" : "Mark done"}
+              </button>
+              <button
+                type="button"
+                onClick={() => startEdit(comment)}
+                className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="size-2.5" /> Edit
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeletingId(comment.id)}
+                className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-danger"
+              >
+                <Trash2 className="size-2.5" /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-3 overflow-y-auto p-4">
         {status === "loading" ? (
           [0, 1, 2].map((i) => <Skeleton key={i} className="h-12 rounded-lg" />)
-        ) : comments.length === 0 ? (
+        ) : threads.length === 0 ? (
           <p className="text-sm text-muted-foreground">No comments yet.</p>
         ) : (
-          comments.map((comment) => (
-            <div key={comment.id} className="flex gap-2.5">
-              <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/20 text-[9px] font-bold text-primary">
-                {comment.author.initials}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-medium">{comment.author.name}</span>
-                  <span className="text-xs text-muted-foreground">{formatRelativeTime(comment.createdAt)}</span>
+          threads.map(({ root, replies }) => (
+            // Everything about this thread — the original comment, every reply to it, and the
+            // reply composer — lives inside one bordered card, so a reply reads as part of the
+            // comment it replied to instead of just another unrelated row in the list.
+            <div key={root.id} className="rounded-lg border border-border bg-white/2 p-3">
+              <CommentRow comment={root} />
+
+              {replies.length > 0 && (
+                <div className="mt-3 flex flex-col gap-3 border-l-2 border-border pl-3">
+                  {replies.map((reply) => (
+                    <CommentRow key={reply.id} comment={reply} />
+                  ))}
                 </div>
+              )}
 
-                {editingId === comment.id ? (
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      type="text"
-                      value={editingDraft}
-                      onChange={(e) => setEditingDraft(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") submitEdit(comment.id);
-                        if (e.key === "Escape") setEditingId(null);
-                      }}
-                      autoFocus
-                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-white/20"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => submitEdit(comment.id)}
-                      className="shrink-0 rounded-md bg-primary px-2 py-1 text-[10px] font-medium text-primary-foreground hover:bg-accent"
-                    >
-                      Save
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingId(null)}
-                      className="shrink-0 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-white/10"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <p
-                    onClick={() => handleCommentClick(comment)}
-                    title={
-                      comment.annotationImageUrl
-                        ? activeCommentId === comment.id
-                          ? "Click to hide marked area"
-                          : "Click to view marked area"
-                        : undefined
-                    }
-                    className={cn(
-                      "text-xs leading-relaxed text-foreground/70",
-                      comment.annotationImageUrl && "cursor-pointer transition-colors hover:text-foreground"
-                    )}
+              {replyingToId === root.id && (
+                <div className="mt-2 flex items-center gap-1.5 border-l-2 border-primary/40 pl-3">
+                  <input
+                    type="text"
+                    value={replyDraft}
+                    onChange={(e) => setReplyDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submitReply(root.id)}
+                    placeholder="Write a reply…"
+                    autoFocus
+                    className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-white/20"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Send reply"
+                    onClick={() => submitReply(root.id)}
+                    disabled={!replyDraft.trim()}
+                    className="shrink-0 text-primary transition-colors hover:text-accent disabled:opacity-50"
                   >
-                    {comment.annotationImageUrl && (
-                      <PenTool
-                        className={cn(
-                          "mr-1 inline size-2.5",
-                          activeCommentId === comment.id ? "text-primary" : "text-muted-foreground"
-                        )}
-                      />
-                    )}
-                    {comment.message}
-                  </p>
-                )}
-
-                {editingId !== comment.id && (
-                  <div className="mt-1 flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={() => startReply(comment.id)}
-                      className="flex items-center gap-1 text-[10px] font-medium text-primary hover:underline"
-                    >
-                      <ReplyIcon className="size-2.5" /> Reply
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => startEdit(comment)}
-                      className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil className="size-2.5" /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeletingId(comment.id)}
-                      className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-danger"
-                    >
-                      <Trash2 className="size-2.5" /> Delete
-                    </button>
-                  </div>
-                )}
-
-                {replyingToId === comment.id && (
-                  <div className="mt-2 flex items-center gap-1.5 border-l-2 border-primary/40 pl-2">
-                    <input
-                      type="text"
-                      value={replyDraft}
-                      onChange={(e) => setReplyDraft(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && submitReply()}
-                      placeholder="Write a reply…"
-                      autoFocus
-                      className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none placeholder:text-muted-foreground focus:border-white/20"
-                    />
-                    <button
-                      type="button"
-                      aria-label="Send reply"
-                      onClick={submitReply}
-                      disabled={!replyDraft.trim()}
-                      className="shrink-0 text-primary transition-colors hover:text-accent disabled:opacity-50"
-                    >
-                      <Send className="size-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
+                    <Send className="size-3" />
+                  </button>
+                </div>
+              )}
             </div>
           ))
         )}

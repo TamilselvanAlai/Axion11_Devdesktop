@@ -27,9 +27,13 @@ export function useAssetComments(assetId: string | null) {
     };
   }, [assetId]);
 
-  async function addComment(message: string, annotation?: { image: string; x: number; y: number }) {
+  async function addComment(
+    message: string,
+    annotation?: { image: string; x: number; y: number },
+    parentCommentId?: string
+  ) {
     if (!assetId || !message.trim()) return;
-    const refreshed = await assetService.addComment(assetId, message.trim(), annotation);
+    const refreshed = await assetService.addComment(assetId, message.trim(), annotation, parentCommentId);
     setComments(refreshed);
   }
 
@@ -47,5 +51,17 @@ export function useAssetComments(assetId: string | null) {
     setComments((prev) => prev.filter((c) => c.id !== commentId));
   }
 
-  return { comments, status, addComment, editComment, deleteComment };
+  async function toggleResolved(commentId: string, resolved: boolean) {
+    // Optimistic — flip immediately, roll back if the write fails, same pattern as the other
+    // single-comment mutations above.
+    setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, resolved } : c)));
+    try {
+      await assetService.setCommentResolved(commentId, resolved);
+    } catch (err) {
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, resolved: !resolved } : c)));
+      throw err;
+    }
+  }
+
+  return { comments, status, addComment, editComment, deleteComment, toggleResolved };
 }
