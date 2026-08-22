@@ -104,6 +104,7 @@ export interface ProjectApiDto {
   ownerEmail: string | null;
   teamName: string | null;
   createdAt: string | null;
+  assetCount: number;
 }
 
 export interface AssetDetail extends Asset {

@@ -277,17 +277,21 @@ export const assetService = {
     return data.filter((n) => n.type !== "asset").map(toProjectNode);
   },
 
-  /** Top-level projects list — lets "Projects" land on a folder picker instead of a flat asset dump. */
+  /** Top-level projects list — lets "Projects" land on a folder picker instead of a flat asset dump.
+   *  Uses the lightweight /projects summary endpoint (one grouped count query) instead of
+   *  /projects/tree, which builds every project's full batch/asset/comment tree just to show
+   *  names and counts — that scales with total asset count across the whole account, not just
+   *  project count, and was slow enough on a cold Cloud Run instance to blow past the request
+   *  timeout. Ids are prefixed to match the "p-{id}" convention used by /projects/tree nodes
+   *  elsewhere (sidebar tree, navigation, folder selection). */
   async getProjectsList(): Promise<ProjectSummary[]> {
-    const { data } = await apiClient.get<ProjectTreeApiNode[]>("/projects/tree");
-    return data
-      .filter((n) => n.type === "project")
-      .map((n) => ({
-        id: n.id,
-        name: n.name,
-        assetCount: n.totalAssets ?? 0,
-        dueDate: n.dueDate ?? "—",
-      }));
+    const { data } = await apiClient.get<ProjectApiDto[]>("/projects");
+    return data.map((p) => ({
+      id: `p-${p.id}`,
+      name: p.name,
+      assetCount: p.assetCount ?? 0,
+      dueDate: "—",
+    }));
   },
 
   async searchByName(query: string): Promise<Asset[]> {
